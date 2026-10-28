@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "flowboard-private",
+  "main": "worker/desktop.js",
+  "account_id": "ee820e1214b27bad277c637dd6b3fa22",
+  "compatibility_date": "2026-10-28",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "flowboard_db",
+      "database_name": "flowboard-private",
+      "database_id": "86e5cb02-7f76-472b-811a-7bfb2db74c4b",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}

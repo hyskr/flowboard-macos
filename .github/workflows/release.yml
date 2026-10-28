@@ -1,0 +1,43 @@
+name: macOS release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: node scripts/prepare-ci.mjs
+        env:
+          FLOWBOARD_CONNECTION_JSON: ${{ secrets.FLOWBOARD_CONNECTION_JSON }}
+      - run: npm run test:release
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        with:
+          tagName: v__VERSION__
+          releaseName: FlowBoard v__VERSION__
+          releaseBody: Apple Silicon / Intel 通用 macOS 应用。解压后将 FlowBoard.app 移入应用程序。
+          releaseDraft: false
+          uploadUpdaterJson: false
+          args: --target universal-apple-darwin --bundles app
+      - run: node scripts/publish-updates.mjs native

@@ -1,0 +1,12 @@
+name = "flowboard-worker"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+# Use the existing production D1 database ID; do not create an empty replacement on upgrade.
+[[d1_databases]]
+binding = "flowboard_db"
+database_name = "flowboard-db"
+database_id = "00000000-0000-4000-8000-000000000000"
+
+[triggers]
+crons = ["0 3 * * *"]

@@ -1,0 +1,5 @@
+{
+  "workerUrl": "https://your-private-worker.workers.dev",
+  "appToken": "shared-app-access-token",
+  "updatesUrl": "https://your-private-updates.workers.dev"
+}

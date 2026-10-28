@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "flowboard-updates",
+  "main": "worker/updates-entry.js",
+  "account_id": "ee820e1214b27bad277c637dd6b3fa22",
+  "compatibility_date": "2026-10-28",
+  "workers_dev": true,
+  "preview_urls": false,
+  "r2_buckets": [{ "binding": "UPDATES", "bucket_name": "flowboard-private-updates" }],
+  "services": [{ "binding": "SHARED_SPACE", "service": "flowboard-private" }],
+  "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } }
+}

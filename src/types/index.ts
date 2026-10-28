@@ -1,0 +1,172 @@
+export type ID = string;
+export type View = 'board' | 'calendar' | 'timeline';
+export type ActivityType = 'created' | 'moved' | 'updated' | 'deleted' | 'due_set' | 'completed' | 'reopened';
+export type Priority = 'low' | 'medium' | 'high';
+export type StoreName = 'boards' | 'columns' | 'cards' | 'settings' | 'activity' | 'boardCreds' | 'crdtOps';
+
+export interface Board {
+  id: ID;
+  name: string;
+  createdAt: number;
+}
+
+export interface Column {
+  id: ID;
+  boardId: ID;
+  name: string;
+  order: number;
+  color: string;
+}
+
+export interface Card {
+  version?: number;
+  id: ID;
+  boardId: ID;
+  columnId: ID | null;
+  title: string;
+  desc: string;
+  tags: string[];
+  color: string;
+  priority: Priority;
+  dueDate: string | null;
+  order: number;
+  createdAt: number;
+  completedAt?: number | null;
+  updatedAt?: number;
+  sourceKey?: string;
+  checklist?: { id: string; title: string; done: boolean }[];
+}
+
+export interface CardFilters {
+  priority: Priority | 'all';
+  due: 'all' | 'overdue' | 'today' | 'week' | 'none';
+  tag: string;
+  columnId: string;
+}
+
+export interface ActivityEvent {
+  id: ID;
+  boardId: ID;
+  cardId: ID;
+  type: ActivityType;
+  ts: number;
+  cardTitle?: string;
+  fromColId?: ID | null;
+  toColId?: ID | null;
+  fromColName?: string;
+  toColName?: string;
+  dueDate?: string | null;
+}
+
+export interface BoardCred {
+  boardId: ID;
+  keyHash: string;
+  password?: string;
+  name: string;
+  lastSynced: number | null;
+}
+
+export interface CrdtOp {
+  baseVersion?: number;
+  baseValues?: Record<string, unknown>;
+  restore?: boolean;
+  opId: ID;
+  type: string;
+  ts: number;
+  clientId: string;
+  boardId: ID;
+  payload: Record<string, unknown>;
+}
+
+export interface ThemeDef {
+  id: string;
+  label: string;
+  scheme: 'dark' | 'light';
+  canvas: string;
+  sidebar: string;
+  surface: string;
+  card: string;
+  raised: string;
+  hover: string;
+  line: string;
+  lineStrong: string;
+  fg: string;
+  fgMuted: string;
+  fgSubtle: string;
+  accent: string;
+  accentFg: string;
+}
+
+export interface Toast {
+  id: ID;
+  message: string;
+  icon: string;
+  action?: { label: string; run: () => Promise<void> };
+}
+
+export interface ModalState {
+  type: string;
+  props?: Record<string, unknown>;
+}
+
+export interface CardConflict {
+  opId: string; cardId: string; boardId: string; reason: string; fields: string[];
+  local: Record<string, unknown>; remote: Card | null;
+}
+
+export interface FlowState {
+  conflicts: CardConflict[];
+  resolveConflict: (opId: string, choice: "local" | "remote") => Promise<void>;
+  boards: Board[];
+  columns: Column[];
+  cards: Card[];
+  activity: ActivityEvent[];
+  activeBoardId: string | null;
+  activeView: View;
+  activeTheme: string;
+  backlogOpen: boolean;
+  searchQuery: string;
+  filters: CardFilters;
+  density: 'comfortable' | 'compact';
+  showDueDateOnly: boolean;
+  calendarDate: Date;
+  modal: ModalState | null;
+  toasts: Toast[];
+  workerStatus: boolean;
+  workerUrl: string;
+  syncInterval: number;
+  isLoading: boolean;
+  error: string | null;
+
+  init: () => Promise<void>;
+  setActiveBoard: (id: string | null, replace?: boolean) => Promise<void>;
+  setActiveView: (view: View) => void;
+  setSearchQuery: (q: string) => void;
+  setFilters: (filters: Partial<CardFilters>) => void;
+  clearFilters: () => void;
+  setDensity: (density: 'comfortable' | 'compact') => Promise<void>;
+  toggleBacklog: () => Promise<void>;
+  toggleDueDateOnly: () => void;
+  setCalendarDate: (d: Date) => void;
+  openModal: (type: string, props?: Record<string, unknown>) => void;
+  closeModal: () => void;
+  toast: (message: string, icon?: string, action?: Toast['action']) => void;
+  dismissToast: (id: string) => void;
+  createBoard: (name: string, password: string) => Promise<void>;
+  renameBoard: (id: string, name: string) => Promise<void>;
+  deleteBoard: (id: string) => Promise<void>;
+  createColumn: (boardId: string, name: string) => Promise<void>;
+  updateColumn: (id: string, updates: Partial<Column>) => Promise<void>;
+  deleteColumn: (id: string) => Promise<void>;
+  createCard: (boardId: string, columnId: string | null, data: Partial<Card>) => Promise<void>;
+  updateCard: (id: string, updates: Partial<Card>, base?: Card) => Promise<void>;
+  toggleCardComplete: (id: string) => Promise<void>;
+  deleteCard: (id: string) => Promise<void>;
+  moveCard: (cardId: string, targetColumnId: string | null, targetIndex: number) => Promise<void>;
+  reorderColumns: (orderedIds: string[]) => Promise<void>;
+  saveTheme: (id: string) => Promise<void>;
+  saveSettings: (settings: { workerUrl: string; syncInterval: number }) => Promise<void>;
+  joinBoard: (boardId: string, password: string) => Promise<boolean>;
+  exportData: () => void;
+  importData: (json: string) => Promise<void>;
+}

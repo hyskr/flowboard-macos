@@ -1,0 +1,6 @@
+interface:
+  display_name: "FlowBoard 自动保存任务"
+  short_description: "自动保存已确定的待办、更新原卡片并保留完成记录；仅在任务变化时同步"
+  default_prompt: "使用 $flowboard-tasks 整理本轮已确定的待办并同步到共享看板。"
+policy:
+  allow_implicit_invocation: true
