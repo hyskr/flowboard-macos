@@ -20,7 +20,7 @@ if (mode === 'hot') {
   await uploadFile('manifest.json', 'dist/hot-update/manifest.json');
   console.log(`Signed frontend update ${version} published to private storage.`);
 } else {
-  const directory = 'src-tauri/target/universal-apple-darwin/release/bundle/macos';
+  const directory = join(process.env.CARGO_TARGET_DIR || 'src-tauri/target', 'universal-apple-darwin/release/bundle/macos');
   const archives = (await readdir(directory)).filter(name => name.endsWith('.app.tar.gz'));
   if (archives.length !== 1) throw new Error('Expected one universal macOS updater archive.');
   const archive = archives[0];
@@ -28,7 +28,7 @@ if (mode === 'hot') {
   await uploadFile(key, join(directory, archive));
   const signature = (await readFile(join(directory, `${archive}.sig`), 'utf8')).trim();
   const platform = { signature, url: `${origin}/updates/${key}` };
-  const manifest = JSON.stringify({ version: config.version, notes: `FlowBoard ${config.version}`, pub_date: new Date().toISOString(), platforms: { 'darwin-aarch64': platform, 'darwin-x86_64': platform } });
+  const manifest = JSON.stringify({ version: config.version, notes: `FlowBoard ${config.version}：字段合并、冲突草稿、服务器排序和按需同步。`, pub_date: new Date().toISOString(), platforms: { 'darwin-aarch64': platform, 'darwin-x86_64': platform } });
   await upload('latest.json', manifest, Buffer.byteLength(manifest));
   console.log(`Signed macOS update ${config.version} published to private storage (${basename(archive)}).`);
 }
