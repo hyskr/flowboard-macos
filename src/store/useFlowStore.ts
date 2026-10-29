@@ -441,13 +441,14 @@ export const useFlowStore = create<FlowState>((set, get) => {
     },
 
     saveSettings: ({ workerUrl, syncInterval }) => {
+      const intervalChanged=get().syncInterval!==syncInterval;
       // Debounced edits must use the latest requested endpoint, not queue an obsolete setting.
       sync.stopTimer();
       set({ workerUrl, syncInterval });
       const run = syncWork.catch(() => {}).then(async () => {
         if (get().workerUrl !== workerUrl || get().syncInterval !== syncInterval) return;
         await db.put('settings', { key: 'workerUrl', value: workerUrl });
-        await db.put('settings', { key: 'syncInterval', value: syncInterval });
+        if (intervalChanged) await db.put('settings', { key: 'syncInterval', value: syncInterval });
         sync.setWorkerUrl(workerUrl);
         sync.stopTimer();
         const creds = await sync.getAllBoardCreds();
