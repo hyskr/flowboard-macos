@@ -143,6 +143,7 @@ pub fn save(s: &Store, r: &Value) -> Result<Value> {
         } else {
             when.with_timezone(&zone).format("%Y-%m-%d").to_string()
         };
+        value["timezone"] = json!(zone.to_string());
         value["date"] = json!(date);
         value["occurredAt"] = json!(occurred);
         value["createdAt"] = json!(saved);

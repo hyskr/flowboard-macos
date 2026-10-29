@@ -325,7 +325,7 @@ impl Store {
                 let current = self
                     .get("records", text(&c, "target"))?
                     .ok_or("记录不存在")?;
-                if !current["deletedAt"].is_null() {
+                if !current["deletedAt"].is_null() && proposed["op"] != "journal.restore" {
                     return Err("记录已删除，请先在回收站恢复".into());
                 }
                 proposed["baseVersion"] = current["version"].clone();

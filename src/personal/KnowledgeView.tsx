@@ -285,6 +285,11 @@ export function KnowledgeView({
                 body={current.body || ''}
                 path={current.path}
                 onWiki={(target) => {
+                  const journal = target.match(/\^j([\w-]+)/);
+                  if (journal) {
+                    onJournal(journal[1]);
+                    return;
+                  }
                   const noAnchor = target.split('#')[0];
                   const match = rows.find(
                     (r) =>

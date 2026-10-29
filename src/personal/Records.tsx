@@ -206,7 +206,12 @@ export function Records({ onWiki, initialId }: { onWiki: (target: string) => voi
                       }}
                     >
                       <strong>
-                        {entry.occurredAt.slice(11, 16)}　{entry.title}
+                        {new Date(entry.occurredAt).toLocaleTimeString('zh-CN', {
+                          timeZone: entry.timezone || 'Asia/Shanghai',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        　{entry.title}
                       </strong>
                       <div className={s.preview}>
                         {entry.body

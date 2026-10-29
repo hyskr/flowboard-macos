@@ -385,6 +385,7 @@ pub fn run() {
         }
         return;
     }
+    skills::refresh_legacy_launcher();
     let state = app_state().expect("Cannot load application connection");
     let mut context = tauri::generate_context!();
     context

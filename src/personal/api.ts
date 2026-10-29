@@ -3,6 +3,7 @@ export interface Entry {
   id: string;
   version: number;
   date: string;
+  timezone?: string;
   occurredAt: string;
   savedAt: string;
   title: string;

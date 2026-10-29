@@ -283,3 +283,24 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 }
+
+pub fn refresh_legacy_launcher() {
+    for target in ["codex", "claude"] {
+        let Ok(base) = home(target) else {
+            continue;
+        };
+        let path = base.join("skills/flowboard-tasks/scripts/flowboard");
+        let Ok(body) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let old = "APP='/Applications/FlowBoard.app/Contents/MacOS/flowboard'";
+        if body.contains(old) && body.contains("exec \"$APP\" --skill \"$@\"") {
+            let updated = body.replacen(
+                old,
+                "APP='/Applications/行记.app/Contents/MacOS/flowboard'",
+                1,
+            );
+            let _ = super::write_private(&path, updated.as_bytes());
+        }
+    }
+}
