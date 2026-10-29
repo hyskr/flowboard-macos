@@ -95,6 +95,12 @@ export const useFlowStore = create<FlowState>((set, get) => {
     get().saveSettings({ workerUrl, syncInterval }).catch(() => {});
   }));
 
+  const armSyncTimer = (seconds:number) => sync.startTimer(seconds, async () => {
+    if (document.visibilityState !== 'visible') return;
+    const state=get(), id=state.activeBoardId;
+    if (id && await sync.hasRemoteChanges(id)) await get().saveSettings({workerUrl:get().workerUrl,syncInterval:get().syncInterval});
+  });
+
   const download = (data: unknown, filename: string) => {
     if (isDesktop) { void invoke<string>('export_backup', { data, filename }).then(path => get().toast(`备份已保存：${path}`)).catch(() => get().toast('无法导出备份', '⚠')); return; }
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -427,6 +433,13 @@ export const useFlowStore = create<FlowState>((set, get) => {
       await db.put('settings', { key: 'activeTheme', value: id });
     },
 
+    setSyncInterval: async (seconds) => {
+      const interval=Math.max(60,seconds);
+      await db.put('settings',{key:'syncInterval',value:interval});
+      set({syncInterval:interval});
+      armSyncTimer(interval);
+    },
+
     saveSettings: ({ workerUrl, syncInterval }) => {
       // Debounced edits must use the latest requested endpoint, not queue an obsolete setting.
       sync.stopTimer();
@@ -448,11 +461,7 @@ export const useFlowStore = create<FlowState>((set, get) => {
             set({boards:[...latest.boards.filter(b=>b.id!==c.boardId),...data.boards],columns:[...latest.columns.filter(b=>b.boardId!==c.boardId),...data.columns].sort((a,b)=>a.order-b.order),cards:[...latest.cards.filter(b=>b.boardId!==c.boardId),...data.cards].sort((a,b)=>a.order-b.order),activity:[...latest.activity.filter(b=>b.boardId!==c.boardId),...data.activity].sort((a,b)=>b.ts-a.ts),conflicts:result.conflicts});
           } catch { set({workerStatus:false}); }
         }
-        sync.startTimer(syncInterval, async () => {
-          if (document.visibilityState !== 'visible') return;
-          const id = get().activeBoardId;
-          if (id && await sync.hasRemoteChanges(id)) await get().saveSettings({workerUrl,syncInterval});
-        });
+        armSyncTimer(get().syncInterval);
       });
       syncWork = run;
       return run;

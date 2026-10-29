@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getVersion } from '@tauri-apps/api/app';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { download as downloadFrontend } from 'tauri-plugin-hot-update-api';
@@ -6,6 +7,8 @@ import { cx } from '../utils';
 import ui from './ui.module.css';
 
 export function DesktopUpdates() {
+  const [version,setVersion] = useState('');
+  useEffect(()=>{void getVersion().then(setVersion).catch(()=>setVersion('无法读取'));},[]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [update, setUpdate] = useState<Update | null>(null);
@@ -29,6 +32,7 @@ export function DesktopUpdates() {
     catch { setMessage('更新未能完成，当前版本继续可用。'); setBusy(false); }
   };
   return <section style={{ margin: '24px 0' }}><h3 style={{ marginBottom: 10 }}>应用更新</h3>
+    <p className={ui.hint} style={{marginBottom:12}}>当前应用版本：{version || '读取中…'}</p>
     <button className={cx(ui.btn, ui.secondary)} disabled={busy} onClick={update || ready ? install : checkUpdates}>{busy ? '处理中…' : update ? '安装更新并重启' : ready ? '重启以应用更新' : '检查更新'}</button>
     {message && <p role="status" style={{ marginTop: 10, color: 'var(--fg-muted)' }}>{message}</p>}
   </section>;

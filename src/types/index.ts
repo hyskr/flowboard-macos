@@ -166,6 +166,7 @@ export interface FlowState {
   moveCard: (cardId: string, targetColumnId: string | null, targetIndex: number) => Promise<void>;
   reorderColumns: (orderedIds: string[]) => Promise<void>;
   saveTheme: (id: string) => Promise<void>;
+  setSyncInterval: (seconds: number) => Promise<void>;
   saveSettings: (settings: { workerUrl: string; syncInterval: number }) => Promise<void>;
   joinBoard: (boardId: string, password: string) => Promise<boolean>;
   exportData: () => void;
