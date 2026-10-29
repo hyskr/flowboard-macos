@@ -32,7 +32,6 @@
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "tauri-plugin-hot-update-api": "^0.1.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
