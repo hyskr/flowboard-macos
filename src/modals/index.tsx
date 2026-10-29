@@ -10,6 +10,7 @@ import { ConnectionForm } from '../components/ConnectionSetup';
 import { DesktopSettingsModal } from './DesktopSettingsModal';
 import { ConnectModal } from './ConnectModal';
 import { SettingsModal } from './SettingsModal';
+import { WebSettingsModal } from './WebSettingsModal';
 import { DayDetailModal } from './DayDetailModal';
 import type { ActivityEvent, Card } from '../types';
 import s from './Modal.module.css';
@@ -90,7 +91,7 @@ export function ModalRouter() {
       case 'connection': return <Modal title="连接共享看板"><ConnectionForm initialUrl={p.workerUrl as string | undefined}/></Modal>;
       case 'theme': return <ThemeModal />;
       case 'connect': return isDesktop ? <DesktopSettingsModal /> : <ConnectModal />;
-      case 'settings': return isDesktop ? <DesktopSettingsModal /> : <SettingsModal initialTab={p.tab as 'Boards' | undefined} />;
+      case 'settings': return isDesktop ? <DesktopSettingsModal /> : <WebSettingsModal />;
       case 'joinInvite': return <SettingsModal inviteId={p.boardId as string} />;
       case 'dayDetail': return <DayDetailModal date={p.date as Date} events={p.events as ActivityEvent[]} dueCards={p.dueCards as Card[]} />;
       case 'shortcuts': return <Modal title="Keyboard shortcuts" description="A few small shortcuts for a faster flow.">

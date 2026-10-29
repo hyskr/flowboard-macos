@@ -5,10 +5,10 @@ import { Settings } from './personal/Settings';
 import { ConnectionSetup } from './components/ConnectionSetup';
 import { useEffect, useState } from 'react';
 import { useFlowStore } from './store/useFlowStore';
+import { ContextArea } from './components/ContextArea';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { ConflictPanel } from './components/ConflictPanel';
-import { BoardIntro } from './components/BoardIntro';
 import { BoardToolbar } from './components/BoardToolbar';
 import { FullPageMessage, ToastContainer } from './components/Shell';
 import { Logo } from './components/Icon';
@@ -35,7 +35,7 @@ export function App() {
     }
   };
   const [connection, setConnection] = useState<DesktopInfo | null>(null);
-  const [connectionReady, setConnectionReady] = useState(!isDesktop);
+  const [connectionReady, setConnectionReady] = useState(false);
   const activeView = useFlowStore((st) => st.activeView);
   const activeBoardId = useFlowStore((st) => st.activeBoardId);
   const isLoading = useFlowStore((st) => st.isLoading);
@@ -91,8 +91,7 @@ export function App() {
     window.addEventListener('online', refresh);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('popstate', onPopState);
-    if (isDesktop)
-      void desktopInfo()
+    void desktopInfo()
         .then((info) => {
           setConnection(info);
           if (info.configured) {
@@ -109,7 +108,6 @@ export function App() {
             error: String(error),
           }),
         );
-    else void useFlowStore.getState().init();
     return () => {
       window.removeEventListener('popstate', onPopState);
       window.removeEventListener('focus', refresh);
@@ -119,98 +117,135 @@ export function App() {
   }, []);
 
   return (
-    <div className={cx(s.app, sidebarHidden && s.sidebarHidden)} data-density={density}>
-      <a className={s.skip} href="#main-content">
-        Skip to board
-      </a>
-      <Sidebar
-        open={navOpen}
-        hidden={sidebarHidden}
-        onClose={() => setNavOpen(false)}
-        page={page}
-        onNavigate={isDesktop ? setPage : undefined}
-      />
-      <div className={s.main}>
-        {isDesktop && page !== 'board' ? (
-          <>
-            {page === 'journal' && (
-              <Records
-                initialId={journalId}
-                onWiki={wiki}
-                onToggleSidebar={() => {
-                  setSidebarHidden((v) => !v);
-                  setNavOpen((v) => !v);
-                }}
-              />
-            )}
-            {page === 'knowledge' && (
-              <KnowledgeView
-                initialQuery={knowledgeQuery}
-                onJournal={(id) => {
-                  setJournalId(id);
-                  setPage('journal');
-                }}
-                onSettings={() => setPage('settings')}
-                onToggleSidebar={() => {
-                  setSidebarHidden((v) => !v);
-                  setNavOpen((v) => !v);
-                }}
-              />
-            )}
-            {page === 'settings' && (
-              <Settings
-                connection={connection}
-                onToggleSidebar={() => {
-                  setSidebarHidden((v) => !v);
-                  setNavOpen((v) => !v);
-                }}
-              />
-            )}
-          </>
-        ) : isDesktop && !connectionReady ? (
-          <ConnectionSetup initialUrl={connection?.workerUrl || ''} initialError={connection?.error || ''} />
-        ) : isLoading ? (
-          <div className={s.splash} aria-busy="true">
-            <Logo size={40} />
-          </div>
-        ) : error ? (
-          <FullPageMessage
-            title="无法打开看板"
-            detail={error}
-            action={isDesktop ? { label: '修改连接', run: () => setConnectionReady(false) } : undefined}
-          />
-        ) : (
-          <>
-            <Topbar
-              onOpenNav={() => setNavOpen(true)}
-              sidebarHidden={sidebarHidden}
-              onToggleSidebar={() => setSidebarHidden((hidden) => !hidden)}
-              filtersOpen={filtersOpen}
-              onToggleFilters={() => setFiltersOpen((open) => !open)}
-            />
-            <BoardIntro />
-            <ConflictPanel />
-            <BoardToolbar hidden={!filtersOpen} />
-            <main
-              id="main-content"
-              role="tabpanel"
-              aria-labelledby={`view-${activeView}`}
-              tabIndex={-1}
-              className={s.content}
-            >
-              {!activeBoardId || activeView === 'board' ? (
-                <BoardView key={activeBoardId} />
-              ) : activeView === 'calendar' ? (
-                <CalendarView />
-              ) : (
-                <TimelineView />
+    <ContextArea
+      actions={
+        page === 'board'
+          ? [
+              {
+                label: '新增卡片',
+                icon: 'plus',
+                run: () => {
+                  if (activeBoardId) useFlowStore.getState().openModal('card', {});
+                },
+              },
+              {
+                label: '添加栏目',
+                icon: 'plus',
+                run: () => document.querySelector<HTMLButtonElement>('[data-add-column]')?.click(),
+              },
+              {
+                label: '立即同步',
+                icon: 'cloud',
+                run: () => {
+                  const st = useFlowStore.getState();
+                  return st.saveSettings({ workerUrl: st.workerUrl, syncInterval: st.syncInterval });
+                },
+              },
+              { label: '设置', icon: 'settings', run: () => isDesktop?setPage('settings'):useFlowStore.getState().openModal('settings',{}) },
+            ]
+          : [
+              { label: '共享看板', icon: 'board', run: () => setPage('board') },
+              { label: '开发记录', icon: 'activity', run: () => setPage('journal') },
+              { label: '知识库', icon: 'text', run: () => setPage('knowledge') },
+              { label: '设置', icon: 'settings', run: () => isDesktop?setPage('settings'):useFlowStore.getState().openModal('settings',{}) },
+            ]
+      }
+    >
+      <div className={cx(s.app, sidebarHidden && s.sidebarHidden)} data-density={density}>
+        <a className={s.skip} href="#main-content">
+          Skip to board
+        </a>
+        <Sidebar
+          open={navOpen}
+          hidden={sidebarHidden}
+          onClose={() => setNavOpen(false)}
+          page={page}
+          onNavigate={isDesktop ? setPage : undefined}
+        />
+        <div className={s.main}>
+          {isDesktop && page !== 'board' ? (
+            <>
+              {page === 'journal' && (
+                <Records
+                  initialId={journalId}
+                  onWiki={wiki}
+                  onToggleSidebar={() => {
+                    setSidebarHidden((v) => !v);
+                    setNavOpen((v) => !v);
+                  }}
+                />
               )}
-            </main>
-          </>
-        )}
+              {page === 'knowledge' && (
+                <KnowledgeView
+                  initialQuery={knowledgeQuery}
+                  onJournal={(id) => {
+                    setJournalId(id);
+                    setPage('journal');
+                  }}
+                  onSettings={() => setPage('settings')}
+                  onToggleSidebar={() => {
+                    setSidebarHidden((v) => !v);
+                    setNavOpen((v) => !v);
+                  }}
+                />
+              )}
+              {page === 'settings' && (
+                <Settings
+                  connection={connection}
+                  onToggleSidebar={() => {
+                    setSidebarHidden((v) => !v);
+                    setNavOpen((v) => !v);
+                  }}
+                />
+              )}
+            </>
+          ) : !connectionReady ? (
+            <ConnectionSetup
+              initialUrl={connection?.workerUrl || (isDesktop?'':location.origin)}
+              initialError={connection?.error || ''}
+            />
+          ) : isLoading ? (
+            <div className={s.splash} aria-busy="true">
+              <Logo size={40} />
+            </div>
+          ) : error ? (
+            <FullPageMessage
+              title="无法打开看板"
+              detail={error}
+              action={isDesktop ? { label: '修改连接', run: () => setConnectionReady(false) } : undefined}
+            />
+          ) : (
+            <>
+              <Topbar
+                onOpenNav={() => setNavOpen(true)}
+                sidebarHidden={sidebarHidden}
+                onToggleSidebar={() => setSidebarHidden((hidden) => !hidden)}
+                filtersOpen={filtersOpen}
+                onToggleFilters={() => setFiltersOpen((open) => !open)}
+              />
+              <ConflictPanel />
+              <BoardToolbar hidden={!filtersOpen} />
+              <main
+                id="main-content"
+                role="tabpanel"
+                aria-labelledby={`view-${activeView}`}
+                tabIndex={-1}
+                className={s.content}
+              >
+                {!activeBoardId || activeView === 'board' ? (
+                  <BoardView key={activeBoardId} />
+                ) : activeView === 'calendar' ? (
+                  <CalendarView />
+                ) : (
+                  <TimelineView />
+                )}
+              </main>
+            </>
+          )}
+        </div>
+        <ModalRouter />
+        <ToastContainer />
       </div>
-      <ModalRouter />
-      <ToastContainer />
-    </div>
+    </ContextArea>
   );
 }

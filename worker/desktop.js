@@ -2,7 +2,13 @@ import backend from './index.js';
 import { handleMcp } from './mcp.js';
 
 const desktop = {
-  async fetch(request, env, ctx) {
+  async fetch(request,env,ctx){
+    const path=new URL(request.url).pathname;
+    if(!path.startsWith('/api/')&&path!=='/mcp'&&env.ASSETS)return env.ASSETS.fetch(request);
+    if(request.method==='OPTIONS')return new Response(null,{headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, X-FlowBoard-Access'}});
+    const response=await this.api(request,env,ctx);const headers=new Headers(response.headers);headers.set('Access-Control-Allow-Origin','*');headers.set('Cache-Control','no-store');return new Response(response.body,{status:response.status,headers});
+  },
+  async api(request, env, ctx) {
     const supplied = request.headers.get('X-FlowBoard-Access');
     if (!env.APP_TOKEN || supplied !== env.APP_TOKEN) return Response.json({error:'共享密钥无效'}, { status: 401 });
     const path = new URL(request.url).pathname;

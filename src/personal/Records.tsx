@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { local, openPath, type Entry } from './api';
 import { useDismissToc } from './useDismissToc';
 import { FloatingToc } from './FloatingToc';
+import { ContextArea } from '../components/ContextArea';
 import { PageHeader } from './PageHeader';
 import bar from '../components/Topbar.module.css';
 import { JournalCalendar } from './JournalCalendar';
@@ -280,626 +281,658 @@ export function Records({
       setMessage(String(e));
     }
   };
+  const createEntry = () => {
+    setHistory(null);
+    setBase(null);
+    setEditing({
+      id: crypto.randomUUID(),
+      title: '',
+      body: '',
+      version: 0,
+      date: day || today,
+      occurredAt: new Date().toISOString(),
+      savedAt: '',
+      sessionId: 'manual',
+      source: 'manual',
+      project: project === '未分类' ? '' : project,
+    });
+  };
   return (
-    <div className={s.page}>
-      <PageHeader
-        title="开发记录"
-        onToggleSidebar={onToggleSidebar}
-        tabs={
-          <nav className={bar.views} aria-label="记录分组方式">
-            {(['date', 'project'] as const).map((value) => (
-              <button
-                key={value}
-                className={cx(bar.view, grouping === value && bar.viewActive)}
-                aria-pressed={grouping === value}
-                onClick={() => setGrouping(value)}
-              >
-                <Icon name={value === 'date' ? 'calendar' : 'board'} size={15} />
-                {value === 'date' ? '按日期' : '按项目'}
-              </button>
-            ))}
-          </nav>
-        }
-      >
-        <div className={s.actions}>
-          <label className={bar.search}>
-            <Icon name="search" size={16} />
-            <input
-              placeholder="搜索记录"
-              aria-label="搜索开发记录"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setDay('');
-              }}
-            />
-          </label>
-          <button
-            className={cx(ui.btn, ui.primary)}
-            onClick={() => {
-              setHistory(null);
-              setBase(null);
-              setEditing({
-                id: crypto.randomUUID(),
-                title: '',
-                body: '',
-                version: 0,
-                date: day || today,
-                occurredAt: new Date().toISOString(),
-                savedAt: '',
-                sessionId: 'manual',
-                source: 'manual',
-                project: project === '未分类' ? '' : project,
-              });
-            }}
-          >
-            <Icon name="plus" size={15} />
-            新增记录
-          </button>
-          <button
-            className={cx(ui.btn, ui.secondary)}
-            onClick={() => {
-              setDeleted(!deleted);
-              setEditing(null);
-            }}
-          >
-            {deleted ? '返回记录' : '回收站'}
-          </button>
-        </div>
-      </PageHeader>
-      {message && (
-        <div className={s.notice} role="status">
-          <span>{message}</span>
-          <button onClick={() => setMessage('')}>关闭</button>
-        </div>
-      )}
-      <div className={cx(s.split, s.journalSplit)}>
-        <aside className={s.list} aria-label="开发记录筛选与列表">
-          <div className={s.projectFilter}>
-            <label htmlFor="journal-project">项目</label>
-            <select
-              id="journal-project"
-              className={ui.input}
-              value={project}
-              disabled={!!editing}
-              onChange={(e) => {
-                setProject(e.target.value);
-                setDay('');
-                setHistory(null);
+    <ContextArea
+      actions={[
+        { label: '新增记录', icon: 'plus', run: createEntry },
+        ...(current && !deleted
+          ? [
+              {
+                label: '编辑当前记录',
+                icon: 'pencil' as const,
+                run: () => {
+                  setBase(current);
+                  setEditing({ ...current });
+                },
+              },
+              {
+                label: '复制 Markdown',
+                icon: 'copy' as const,
+                run: () => navigator.clipboard.writeText(current.body || ''),
+              },
+            ]
+          : []),
+      ]}
+    >
+      <div className={s.page}>
+        <PageHeader
+          title="开发记录"
+          onToggleSidebar={onToggleSidebar}
+          tabs={
+            <nav className={bar.views} aria-label="记录分组方式">
+              {(['date', 'project'] as const).map((value) => (
+                <button
+                  key={value}
+                  className={cx(bar.view, grouping === value && bar.viewActive)}
+                  aria-pressed={grouping === value}
+                  onClick={() => setGrouping(value)}
+                >
+                  <Icon name={value === 'date' ? 'calendar' : 'board'} size={15} />
+                  {value === 'date' ? '按日期' : '按项目'}
+                </button>
+              ))}
+            </nav>
+          }
+        >
+          <div className={s.actions}>
+            <label className={bar.search}>
+              <Icon name="search" size={16} />
+              <input
+                placeholder="搜索记录"
+                aria-label="搜索开发记录"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setDay('');
+                }}
+              />
+            </label>
+            <button className={cx(ui.btn, ui.primary)} onClick={createEntry}>
+              <Icon name="plus" size={15} />
+              新增记录
+            </button>
+            <button
+              className={cx(ui.btn, ui.secondary)}
+              onClick={() => {
+                setDeleted(!deleted);
+                setEditing(null);
               }}
             >
-              <option value="">全部项目 · {entries.length} 条</option>
-              {projects.map(([name, count]) => (
-                <option key={name} value={name}>
-                  {name} · {count}
-                </option>
-              ))}
-            </select>
+              {deleted ? '返回记录' : '回收站'}
+            </button>
           </div>
-          <div className={s.listHeading}>
-            <strong>{day ? `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8))} 日` : '全部记录'}</strong>
-            <div className={s.listHeadingActions}>
-              <span>{visible.length} 条</span>
-              <div ref={groupTocRef} className={s.groupTocAnchor} data-journal-keyboard-local>
-                <button
-                  className={s.tocTrigger}
-                  aria-expanded={groupTocOpen}
-                  onClick={() => setGroupTocOpen((value) => !value)}
-                >
-                  <Icon name="text" size={14} />
-                  {projectDirectory ? '项目目录' : '日期目录'}
-                </button>
-                {groupTocOpen && (
-                  <nav className={s.tocPopup} aria-label={projectDirectory ? '项目目录' : '日期目录'}>
-                    <div>
-                      {projectDirectory ? '项目目录' : '日期目录'}
-                      <button aria-label="关闭分组目录" onClick={() => setGroupTocOpen(false)}>
-                        ×
-                      </button>
-                    </div>
-                    {[...directoryGroups].map(([key, rows]) => (
-                      <button
-                        key={key}
-                        onClick={() => {
-                          setCollapsedProjects((previous) => {
-                            const next = new Set(previous);
-                            next.delete(key);
-                            return next;
-                          });
-                          setGroupTocOpen(false);
-                          requestAnimationFrame(() =>
-                            cardListRef.current
-                              ?.querySelector<HTMLElement>(
-                                projectDirectory
-                                  ? `[data-entry-id="${CSS.escape(rows[0].id)}"]`
-                                  : `[data-group-key="${CSS.escape(key)}"]`,
-                              )
-                              ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-                          );
-                        }}
-                      >
-                        <span>{key}</span>
-                        <small> · {rows.length}</small>
-                      </button>
-                    ))}
-                  </nav>
-                )}
+        </PageHeader>
+        {message && (
+          <div className={s.notice} role="status">
+            <span>{message}</span>
+            <button onClick={() => setMessage('')}>关闭</button>
+          </div>
+        )}
+        <div className={cx(s.split, s.journalSplit)}>
+          <aside className={s.list} aria-label="开发记录筛选与列表">
+            <div className={s.projectFilter}>
+              <label htmlFor="journal-project">项目</label>
+              <select
+                id="journal-project"
+                className={ui.input}
+                value={project}
+                disabled={!!editing}
+                onChange={(e) => {
+                  setProject(e.target.value);
+                  setDay('');
+                  setHistory(null);
+                }}
+              >
+                <option value="">全部项目 · {entries.length} 条</option>
+                {projects.map(([name, count]) => (
+                  <option key={name} value={name}>
+                    {name} · {count}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={s.listHeading}>
+              <strong>{day ? `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8))} 日` : '全部记录'}</strong>
+              <div className={s.listHeadingActions}>
+                <span>{visible.length} 条</span>
+                <div ref={groupTocRef} className={s.groupTocAnchor} data-journal-keyboard-local>
+                  <button
+                    className={s.tocTrigger}
+                    aria-expanded={groupTocOpen}
+                    onClick={() => setGroupTocOpen((value) => !value)}
+                  >
+                    <Icon name="text" size={14} />
+                    {projectDirectory ? '项目目录' : '日期目录'}
+                  </button>
+                  {groupTocOpen && (
+                    <nav className={s.tocPopup} aria-label={projectDirectory ? '项目目录' : '日期目录'}>
+                      <div>
+                        {projectDirectory ? '项目目录' : '日期目录'}
+                        <button aria-label="关闭分组目录" onClick={() => setGroupTocOpen(false)}>
+                          ×
+                        </button>
+                      </div>
+                      {[...directoryGroups].map(([key, rows]) => (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            setCollapsedProjects((previous) => {
+                              const next = new Set(previous);
+                              next.delete(key);
+                              return next;
+                            });
+                            setGroupTocOpen(false);
+                            requestAnimationFrame(() =>
+                              cardListRef.current
+                                ?.querySelector<HTMLElement>(
+                                  projectDirectory
+                                    ? `[data-entry-id="${CSS.escape(rows[0].id)}"]`
+                                    : `[data-group-key="${CSS.escape(key)}"]`,
+                                )
+                                ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+                            );
+                          }}
+                        >
+                          <span>{key}</span>
+                          <small> · {rows.length}</small>
+                        </button>
+                      ))}
+                    </nav>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          <div className={s.entries} ref={cardListRef}>
-            {[...groups].map(([groupKey, groupEntries]) => (
-              <section
-                data-group-key={groupKey}
-                key={groupKey}
-                className={grouping === 'project' ? s.projectGroup : undefined}
-              >
-                {grouping === 'project' ? (
-                  <button
-                    className={s.projectGroupHeader}
-                    aria-expanded={!collapsedProjects.has(groupKey)}
-                    onClick={() =>
-                      setCollapsedProjects((previous) => {
-                        const next = new Set(previous);
-                        if (next.has(groupKey)) next.delete(groupKey);
-                        else next.add(groupKey);
-                        return next;
-                      })
-                    }
-                  >
-                    <Icon name={collapsedProjects.has(groupKey) ? 'chevronRight' : 'chevronDown'} size={14} />
-                    <span>
-                      <strong title={groupKey}>{groupKey}</strong>
-                      <small>最近记录 {groupEntries[0].date}</small>
-                    </span>
-                    <b>{groupEntries.length}</b>
-                  </button>
-                ) : (
-                  !day && (
-                    <h2 className={s.groupHeading}>
-                      <Icon name="calendar" size={13} />
-                      {Number(groupKey.slice(5, 7))} 月 {Number(groupKey.slice(8))} 日
-                      <span>{groupEntries.length}</span>
-                    </h2>
-                  )
-                )}
-                <div hidden={grouping === 'project' && collapsedProjects.has(groupKey)}>
-                  {[...groupBy(groupEntries, (e) => (grouping === 'project' ? e.date : e.sessionId))].map(
-                    ([subgroup, rows]) => (
-                      <div key={subgroup}>
-                        <h3>{grouping === 'project' ? rows[0].date : rows[0].project || '未分类'}</h3>
-                        {rows.map((entry) => (
-                          <button
-                            className={s.item}
-                            data-entry-id={entry.id}
-                            aria-current={entry.id === selected}
-                            key={entry.id}
-                            onClick={() => {
-                              if (editing) return;
-                              setSelected(entry.id);
-                              setHistory(null);
-                            }}
-                          >
-                            <div className={s.entryTime}>
-                              {new Date(entry.occurredAt).toLocaleTimeString('zh-CN', {
-                                timeZone: entry.timezone || 'Asia/Shanghai',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                              <span>
-                                {entry.source === 'codex'
-                                  ? 'Codex'
-                                  : entry.source === 'claude'
-                                    ? 'Claude'
-                                    : entry.source === 'manual'
-                                      ? '手动记录'
-                                      : '导入记录'}
-                              </span>
-                            </div>
-                            <strong>{entry.title.replace(/^#+\s*/, '')}</strong>
-                            <div className={s.preview}>
-                              {entry.body
-                                .split('\n')
-                                .filter(
-                                  (l) =>
-                                    l.trim() &&
-                                    !l.startsWith('#') &&
-                                    !l.startsWith('<') &&
-                                    !/^\*\*(标签|项目|来源|触发)/.test(l),
-                                )
-                                .slice(0, 3)
-                                .join('\n')}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    ),
-                  )}
-                </div>
-              </section>
-            ))}
-            {!visible.length && (
-              <div className={s.listEmpty}>
-                <Icon name="calendar" size={24} />
-                <p>
-                  {loading
-                    ? '正在读取记录…'
-                    : query
-                      ? '没有找到匹配的记录'
-                      : day
-                        ? '这一天还没有记录'
-                        : '还没有开发记录'}
-                </p>
-                {day && (
-                  <button className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => chooseDay('')}>
-                    查看其他日期
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </aside>
-        <article
-          ref={readerRef}
-          className={cx(s.reader, s.journalReader)}
-          key={editing ? 'editing' : current?.id || 'empty'}
-        >
-          {current && !editing && (
-            <FloatingToc reader={readerRef} recordId={current.id + ':' + current.version} />
-          )}
-          <div className={s.document}>
-            {editing ? (
-              <div className={s.editor}>
-                <h1>{editing.version ? '编辑阶段' : '新增阶段'}</h1>
-                <label>
-                  标题
-                  <input
-                    className={ui.input}
-                    value={editing.title}
-                    onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                  />
-                </label>
-                <label>
-                  正文 · Markdown
-                  <textarea
-                    className={ui.textarea}
-                    value={editing.body}
-                    onChange={(e) => setEditing({ ...editing, body: e.target.value })}
-                  />
-                </label>
-                <label>
-                  项目名称（可选）
-                  <input
-                    className={ui.input}
-                    placeholder="例如：行记、Typst 课程报告"
-                    list="journal-project-options"
-                    value={editing.project || ''}
-                    onChange={(e) => setEditing({ ...editing, project: e.target.value })}
-                  />
-                </label>
-                <datalist id="journal-project-options">
-                  {projects
-                    .filter(([name]) => name !== '未分类')
-                    .map(([name]) => (
-                      <option key={name} value={name} />
-                    ))}
-                </datalist>
-                {!editing.version && (
-                  <label>
-                    发生日期
-                    <input
-                      className={ui.input}
-                      type="date"
-                      value={editing.date}
-                      onChange={(e) => setEditing({ ...editing, date: e.target.value })}
-                    />
-                  </label>
-                )}
-                <div className={s.actions}>
-                  <button
-                    className={cx(ui.btn, ui.primary)}
-                    disabled={busy || !editing.title.trim() || !editing.body.trim()}
-                    onClick={() => void save()}
-                  >
-                    保存
-                  </button>
-                  <button
-                    className={cx(ui.btn, ui.secondary)}
-                    disabled={busy}
-                    onClick={() => setEditing(null)}
-                  >
-                    取消
-                  </button>
-                </div>
-              </div>
-            ) : current ? (
-              <>
-                <div className={s.readerEyebrow}>
-                  <Icon name="activity" size={14} />
-                  {current.date} / {current.project || '个人记录'}
-                </div>
-                <h1>{current.title.replace(/^#+\s*/, '')}</h1>
-                <div className={s.meta}>
-                  {new Date(current.occurredAt).toLocaleTimeString('zh-CN', {
-                    timeZone: current.timezone || timezone,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}{' '}
-                  记录 · 版本 {current.version}
-                </div>
-                <div className={cx(s.actions, s.readerActions)}>
-                  <div className={s.recordPager}>
+            <div className={s.entries} ref={cardListRef}>
+              {[...groups].map(([groupKey, groupEntries]) => (
+                <section
+                  data-group-key={groupKey}
+                  key={groupKey}
+                  className={grouping === 'project' ? s.projectGroup : undefined}
+                >
+                  {grouping === 'project' ? (
                     <button
-                      className={cx(ui.btn, ui.ghost)}
-                      disabled={currentIndex <= 0}
-                      onClick={() => navigateRecord(-1)}
-                      title="上一条"
+                      className={s.projectGroupHeader}
+                      aria-expanded={!collapsedProjects.has(groupKey)}
+                      onClick={() =>
+                        setCollapsedProjects((previous) => {
+                          const next = new Set(previous);
+                          if (next.has(groupKey)) next.delete(groupKey);
+                          else next.add(groupKey);
+                          return next;
+                        })
+                      }
                     >
-                      <Icon name="chevronUp" size={14} />
-                      上一条
-                    </button>
-                    <span>
-                      {currentIndex + 1} / {displayed.length}
-                    </span>
-                    <button
-                      className={cx(ui.btn, ui.ghost)}
-                      disabled={currentIndex < 0 || currentIndex >= displayed.length - 1}
-                      onClick={() => navigateRecord(1)}
-                      title="下一条"
-                    >
-                      下一条
-                      <Icon name="chevronDown" size={14} />
-                    </button>
-                  </div>
-                  {deleted ? (
-                    <button className={cx(ui.btn, ui.secondary)} onClick={() => void remove(current, true)}>
-                      撤销删除
+                      <Icon
+                        name={collapsedProjects.has(groupKey) ? 'chevronRight' : 'chevronDown'}
+                        size={14}
+                      />
+                      <span>
+                        <strong title={groupKey}>{groupKey}</strong>
+                        <small>最近记录 {groupEntries[0].date}</small>
+                      </span>
+                      <b>{groupEntries.length}</b>
                     </button>
                   ) : (
-                    <>
-                      <button
-                        className={cx(ui.btn, ui.secondary)}
-                        onClick={() => {
-                          setBase(current);
-                          setEditing({ ...current });
-                        }}
-                      >
-                        编辑
-                      </button>
-                      <button className={cx(ui.btn, ui.ghost)} onClick={() => void remove(current)}>
-                        删除
-                      </button>
-                    </>
+                    !day && (
+                      <h2 className={s.groupHeading}>
+                        <Icon name="calendar" size={13} />
+                        {Number(groupKey.slice(5, 7))} 月 {Number(groupKey.slice(8))} 日
+                        <span>{groupEntries.length}</span>
+                      </h2>
+                    )
                   )}
-                  <button
-                    className={cx(ui.btn, ui.ghost)}
-                    onClick={() =>
-                      void navigator.clipboard
-                        .writeText(current.body)
-                        .then(() => setMessage('已复制 Markdown'))
-                    }
-                  >
-                    复制 Markdown
-                  </button>
-                  <button
-                    className={cx(ui.btn, ui.ghost)}
-                    onClick={() =>
-                      void local<Entry[]>('history', { kind: 'journal', id: current.id }).then(setHistory)
-                    }
-                  >
-                    修订记录
-                  </button>
-                  {current.sourceChat && (
+                  <div hidden={grouping === 'project' && collapsedProjects.has(groupKey)}>
+                    {[...groupBy(groupEntries, (e) => (grouping === 'project' ? e.date : e.sessionId))].map(
+                      ([subgroup, rows]) => (
+                        <div key={subgroup}>
+                          <h3>{grouping === 'project' ? rows[0].date : rows[0].project || '未分类'}</h3>
+                          {rows.map((entry) => (
+                            <button
+                              className={s.item}
+                              onContextMenu={() => {
+                                if (!editing) {
+                                  setSelected(entry.id);
+                                  setHistory(null);
+                                }
+                              }}
+                              data-entry-id={entry.id}
+                              aria-current={entry.id === selected}
+                              key={entry.id}
+                              onClick={() => {
+                                if (editing) return;
+                                setSelected(entry.id);
+                                setHistory(null);
+                              }}
+                            >
+                              <div className={s.entryTime}>
+                                {new Date(entry.occurredAt).toLocaleTimeString('zh-CN', {
+                                  timeZone: entry.timezone || 'Asia/Shanghai',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                                <span>
+                                  {entry.source === 'codex'
+                                    ? 'Codex'
+                                    : entry.source === 'claude'
+                                      ? 'Claude'
+                                      : entry.source === 'manual'
+                                        ? '手动记录'
+                                        : '导入记录'}
+                                </span>
+                              </div>
+                              <strong>{entry.title.replace(/^#+\s*/, '')}</strong>
+                              <div className={s.preview}>
+                                {entry.body
+                                  .split('\n')
+                                  .filter(
+                                    (l) =>
+                                      l.trim() &&
+                                      !l.startsWith('#') &&
+                                      !l.startsWith('<') &&
+                                      !/^\*\*(标签|项目|来源|触发)/.test(l),
+                                  )
+                                  .slice(0, 3)
+                                  .join('\n')}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </section>
+              ))}
+              {!visible.length && (
+                <div className={s.listEmpty}>
+                  <Icon name="calendar" size={24} />
+                  <p>
+                    {loading
+                      ? '正在读取记录…'
+                      : query
+                        ? '没有找到匹配的记录'
+                        : day
+                          ? '这一天还没有记录'
+                          : '还没有开发记录'}
+                  </p>
+                  {day && (
+                    <button className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => chooseDay('')}>
+                      查看其他日期
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </aside>
+          <article
+            ref={readerRef}
+            className={cx(s.reader, s.journalReader)}
+            key={editing ? 'editing' : current?.id || 'empty'}
+          >
+            {current && !editing && (
+              <FloatingToc reader={readerRef} recordId={current.id + ':' + current.version} />
+            )}
+            <div className={s.document}>
+              {editing ? (
+                <div className={s.editor}>
+                  <h1>{editing.version ? '编辑阶段' : '新增阶段'}</h1>
+                  <label>
+                    标题
+                    <input
+                      className={ui.input}
+                      value={editing.title}
+                      onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    正文 · Markdown
+                    <textarea
+                      className={ui.textarea}
+                      value={editing.body}
+                      onChange={(e) => setEditing({ ...editing, body: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    项目名称（可选）
+                    <input
+                      className={ui.input}
+                      placeholder="例如：行记、Typst 课程报告"
+                      list="journal-project-options"
+                      value={editing.project || ''}
+                      onChange={(e) => setEditing({ ...editing, project: e.target.value })}
+                    />
+                  </label>
+                  <datalist id="journal-project-options">
+                    {projects
+                      .filter(([name]) => name !== '未分类')
+                      .map(([name]) => (
+                        <option key={name} value={name} />
+                      ))}
+                  </datalist>
+                  {!editing.version && (
+                    <label>
+                      发生日期
+                      <input
+                        className={ui.input}
+                        type="date"
+                        value={editing.date}
+                        onChange={(e) => setEditing({ ...editing, date: e.target.value })}
+                      />
+                    </label>
+                  )}
+                  <div className={s.actions}>
+                    <button
+                      className={cx(ui.btn, ui.primary)}
+                      disabled={busy || !editing.title.trim() || !editing.body.trim()}
+                      onClick={() => void save()}
+                    >
+                      保存
+                    </button>
+                    <button
+                      className={cx(ui.btn, ui.secondary)}
+                      disabled={busy}
+                      onClick={() => setEditing(null)}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              ) : current ? (
+                <>
+                  <div className={s.readerEyebrow}>
+                    <Icon name="activity" size={14} />
+                    {current.date} / {current.project || '个人记录'}
+                  </div>
+                  <h1>{current.title.replace(/^#+\s*/, '')}</h1>
+                  <div className={s.meta}>
+                    {new Date(current.occurredAt).toLocaleTimeString('zh-CN', {
+                      timeZone: current.timezone || timezone,
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}{' '}
+                    记录 · 版本 {current.version}
+                  </div>
+                  <div className={cx(s.actions, s.readerActions)}>
+                    <div className={s.recordPager}>
+                      <button
+                        className={cx(ui.btn, ui.ghost)}
+                        disabled={currentIndex <= 0}
+                        onClick={() => navigateRecord(-1)}
+                        title="上一条"
+                      >
+                        <Icon name="chevronUp" size={14} />
+                        上一条
+                      </button>
+                      <span>
+                        {currentIndex + 1} / {displayed.length}
+                      </span>
+                      <button
+                        className={cx(ui.btn, ui.ghost)}
+                        disabled={currentIndex < 0 || currentIndex >= displayed.length - 1}
+                        onClick={() => navigateRecord(1)}
+                        title="下一条"
+                      >
+                        下一条
+                        <Icon name="chevronDown" size={14} />
+                      </button>
+                    </div>
+                    {deleted ? (
+                      <button className={cx(ui.btn, ui.secondary)} onClick={() => void remove(current, true)}>
+                        撤销删除
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          className={cx(ui.btn, ui.secondary)}
+                          onClick={() => {
+                            setBase(current);
+                            setEditing({ ...current });
+                          }}
+                        >
+                          编辑
+                        </button>
+                        <button className={cx(ui.btn, ui.ghost)} onClick={() => void remove(current)}>
+                          删除
+                        </button>
+                      </>
+                    )}
                     <button
                       className={cx(ui.btn, ui.ghost)}
                       onClick={() =>
-                        void openSourceChat(current.sourceChat!).catch((e) => setMessage(String(e)))
+                        void navigator.clipboard
+                          .writeText(current.body)
+                          .then(() => setMessage('已复制 Markdown'))
                       }
                     >
-                      来源聊天
+                      复制 Markdown
                     </button>
-                  )}
-                </div>
-                <div data-record-body>
-                  <RecordBody body={current.body} onWiki={onWiki} />
-                </div>
-                {current.artifacts?.length ? (
-                  <div className={s.actions} style={{ marginTop: 20 }}>
-                    {current.artifacts.map((a) => (
-                      <button
-                        className={cx(ui.btn, ui.secondary)}
-                        key={a.path}
-                        onClick={() => void openPath(a.path).catch((e) => setMessage(String(e)))}
-                      >
-                        {a.label || '打开产物'}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                <details className={s.properties}>
-                  <summary>属性与来源</summary>
-                  {current.importPath && (
                     <button
                       className={cx(ui.btn, ui.ghost)}
-                      onClick={() => void openPath(current.importPath!).catch((e) => setMessage(String(e)))}
+                      onClick={() =>
+                        void local<Entry[]>('history', { kind: 'journal', id: current.id }).then(setHistory)
+                      }
                     >
-                      打开原日记文件
+                      修订记录
                     </button>
-                  )}
-                  <p>
-                    发生时间：{current.occurredAt}
-                    <br />
-                    保存时间：{current.savedAt}
-                    <br />
-                    客户端：{current.source}
-                    <br />
-                    阶段 ID：{current.id}
-                    <br />
-                    聊天分组：{current.sessionId}
-                  </p>
-                  {current.taskLinks?.length ? <pre>{JSON.stringify(current.taskLinks, null, 2)}</pre> : null}
-                </details>
-                {history && (
-                  <section>
-                    <h2>历史修订</h2>
-                    {history.map((v) => (
-                      <details className={s.properties} key={v.version}>
-                        <summary>
-                          版本 {v.version} · {v.savedAt}
-                        </summary>
-                        <Markdown body={v.body} />
-                      </details>
-                    ))}
-                  </section>
-                )}
-              </>
-            ) : (
-              <div className={s.empty}>
-                <Icon name="calendar" size={36} />
-                <h2>{day ? '这一天，留待记录。' : '从一天开始回顾。'}</h2>
-                <p>
-                  {day
-                    ? '选择其他日期阅读已有成果，或新建一条记录。'
-                    : '点击日历上的日期，查看当天的进展与完整记录。'}
-                </p>
-              </div>
-            )}
-          </div>
-        </article>
-        <aside className={s.contextPanel} aria-label="日历与相关日志">
-          <JournalCalendar
-            month={month}
-            day={day}
-            today={today}
-            counts={counts}
-            onMonth={setMonth}
-            onDay={chooseDay}
-            disabled={!!editing}
-          />
-          <details className={s.rangeFilter}>
-            <summary>
-              <Icon name="calendar" size={14} />
-              日期范围与导出
-            </summary>
-            <div className={s.rangeFields}>
-              <label>
-                开始日期
-                <input
-                  className={ui.input}
-                  type="date"
-                  value={from}
-                  onChange={(e) => {
-                    setFrom(e.target.value);
-                    setDay('');
-                  }}
-                />
-              </label>
-              <label>
-                结束日期
-                <input
-                  className={ui.input}
-                  type="date"
-                  value={to}
-                  onChange={(e) => {
-                    setTo(e.target.value);
-                    setDay('');
-                  }}
-                />
-              </label>
-              <button
-                className={cx(ui.btn, ui.secondary, ui.sm)}
-                onClick={() =>
-                  void local<{ path: string }>('journal.export', {
-                    from: day || from,
-                    to: day || to,
-                    query,
-                    project,
-                  })
-                    .then((v) => setMessage(`已导出：${v.path}`))
-                    .catch((e) => setMessage(String(e)))
-                }
-              >
-                <Icon name="download" size={14} />
-                导出 Markdown
-              </button>
-              {(from || to) && (
-                <button
-                  className={cx(ui.btn, ui.ghost, ui.sm)}
-                  onClick={() => {
-                    setFrom('');
-                    setTo('');
-                  }}
-                >
-                  清除范围
-                </button>
-              )}
-            </div>
-          </details>
-          {current && (
-            <section className={s.relatedLogs} aria-label="跨日期相关日志">
-              <div className={s.relatedHead}>
-                <div>
-                  <strong>{useChat ? '聊天历史' : '项目历史'}</strong>
-                  <p className={s.relatedProjectName} title={current.project}>
-                    {current.project || '未分类'}
-                  </p>
-                  <p>
-                    {relatedDays.size} 个日期 · {related.length} 条记录
-                  </p>
-                </div>
-                {canRelateByChat && current.project?.trim() && (
-                  <div className={bar.views}>
-                    {current.project?.trim() && (
+                    {current.sourceChat && (
                       <button
-                        className={cx(bar.view, !useChat && bar.viewActive)}
-                        onClick={() => setRelatedScope('project')}
+                        className={cx(ui.btn, ui.ghost)}
+                        onClick={() =>
+                          void openSourceChat(current.sourceChat!).catch((e) => setMessage(String(e)))
+                        }
                       >
-                        同项目
-                      </button>
-                    )}
-                    {canRelateByChat && (
-                      <button
-                        className={cx(bar.view, useChat && bar.viewActive)}
-                        onClick={() => setRelatedScope('chat')}
-                      >
-                        同聊天
+                        来源聊天
                       </button>
                     )}
                   </div>
-                )}
-              </div>
-              <div className={s.relatedTimeline}>
-                {[...relatedDays].map(([date, rows]) => (
-                  <div className={s.relatedDay} key={date}>
-                    <time>{date}</time>
-                    <div>
-                      {rows.map((entry) => (
+                  <div data-record-body>
+                    <RecordBody body={current.body} onWiki={onWiki} />
+                  </div>
+                  {current.artifacts?.length ? (
+                    <div className={s.actions} style={{ marginTop: 20 }}>
+                      {current.artifacts.map((a) => (
                         <button
-                          className={s.relatedEntry}
-                          key={entry.id}
-                          aria-current={entry.id === current.id ? 'true' : undefined}
-                          onClick={() => jumpToRelated(entry)}
+                          className={cx(ui.btn, ui.secondary)}
+                          key={a.path}
+                          onClick={() => void openPath(a.path).catch((e) => setMessage(String(e)))}
                         >
-                          <span>
-                            {new Date(entry.occurredAt).toLocaleTimeString('zh-CN', {
-                              timeZone: entry.timezone || timezone,
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                          <strong>{entry.title.replace(/^#+\s*/, '')}</strong>
-                          {entry.id === current.id && <small>当前</small>}
+                          {a.label || '打开产物'}
                         </button>
                       ))}
                     </div>
-                  </div>
-                ))}
+                  ) : null}
+                  <details className={s.properties}>
+                    <summary>属性与来源</summary>
+                    {current.importPath && (
+                      <button
+                        className={cx(ui.btn, ui.ghost)}
+                        onClick={() => void openPath(current.importPath!).catch((e) => setMessage(String(e)))}
+                      >
+                        打开原日记文件
+                      </button>
+                    )}
+                    <p>
+                      发生时间：{current.occurredAt}
+                      <br />
+                      保存时间：{current.savedAt}
+                      <br />
+                      客户端：{current.source}
+                      <br />
+                      阶段 ID：{current.id}
+                      <br />
+                      聊天分组：{current.sessionId}
+                    </p>
+                    {current.taskLinks?.length ? (
+                      <pre>{JSON.stringify(current.taskLinks, null, 2)}</pre>
+                    ) : null}
+                  </details>
+                  {history && (
+                    <section>
+                      <h2>历史修订</h2>
+                      {history.map((v) => (
+                        <details className={s.properties} key={v.version}>
+                          <summary>
+                            版本 {v.version} · {v.savedAt}
+                          </summary>
+                          <Markdown body={v.body} />
+                        </details>
+                      ))}
+                    </section>
+                  )}
+                </>
+              ) : (
+                <div className={s.empty}>
+                  <Icon name="calendar" size={36} />
+                  <h2>{day ? '这一天，留待记录。' : '从一天开始回顾。'}</h2>
+                  <p>
+                    {day
+                      ? '选择其他日期阅读已有成果，或新建一条记录。'
+                      : '点击日历上的日期，查看当天的进展与完整记录。'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </article>
+          <aside className={s.contextPanel} aria-label="日历与相关日志">
+            <JournalCalendar
+              month={month}
+              day={day}
+              today={today}
+              counts={counts}
+              onMonth={setMonth}
+              onDay={chooseDay}
+              disabled={!!editing}
+            />
+            <details className={s.rangeFilter}>
+              <summary>
+                <Icon name="calendar" size={14} />
+                日期范围与导出
+              </summary>
+              <div className={s.rangeFields}>
+                <label>
+                  开始日期
+                  <input
+                    className={ui.input}
+                    type="date"
+                    value={from}
+                    onChange={(e) => {
+                      setFrom(e.target.value);
+                      setDay('');
+                    }}
+                  />
+                </label>
+                <label>
+                  结束日期
+                  <input
+                    className={ui.input}
+                    type="date"
+                    value={to}
+                    onChange={(e) => {
+                      setTo(e.target.value);
+                      setDay('');
+                    }}
+                  />
+                </label>
+                <button
+                  className={cx(ui.btn, ui.secondary, ui.sm)}
+                  onClick={() =>
+                    void local<{ path: string }>('journal.export', {
+                      from: day || from,
+                      to: day || to,
+                      query,
+                      project,
+                    })
+                      .then((v) => setMessage(`已导出：${v.path}`))
+                      .catch((e) => setMessage(String(e)))
+                  }
+                >
+                  <Icon name="download" size={14} />
+                  导出 Markdown
+                </button>
+                {(from || to) && (
+                  <button
+                    className={cx(ui.btn, ui.ghost, ui.sm)}
+                    onClick={() => {
+                      setFrom('');
+                      setTo('');
+                    }}
+                  >
+                    清除范围
+                  </button>
+                )}
               </div>
-            </section>
-          )}
-          {!current && <div className={s.listEmpty}>选择一条日志，查看同项目的历次记录。</div>}
-        </aside>
+            </details>
+            {current && (
+              <section className={s.relatedLogs} aria-label="跨日期相关日志">
+                <div className={s.relatedHead}>
+                  <div>
+                    <strong>{useChat ? '聊天历史' : '项目历史'}</strong>
+                    <p className={s.relatedProjectName} title={current.project}>
+                      {current.project || '未分类'}
+                    </p>
+                    <p>
+                      {relatedDays.size} 个日期 · {related.length} 条记录
+                    </p>
+                  </div>
+                  {canRelateByChat && current.project?.trim() && (
+                    <div className={bar.views}>
+                      {current.project?.trim() && (
+                        <button
+                          className={cx(bar.view, !useChat && bar.viewActive)}
+                          onClick={() => setRelatedScope('project')}
+                        >
+                          同项目
+                        </button>
+                      )}
+                      {canRelateByChat && (
+                        <button
+                          className={cx(bar.view, useChat && bar.viewActive)}
+                          onClick={() => setRelatedScope('chat')}
+                        >
+                          同聊天
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className={s.relatedTimeline}>
+                  {[...relatedDays].map(([date, rows]) => (
+                    <div className={s.relatedDay} key={date}>
+                      <time>{date}</time>
+                      <div>
+                        {rows.map((entry) => (
+                          <button
+                            className={s.relatedEntry}
+                            key={entry.id}
+                            aria-current={entry.id === current.id ? 'true' : undefined}
+                            onClick={() => jumpToRelated(entry)}
+                          >
+                            <span>
+                              {new Date(entry.occurredAt).toLocaleTimeString('zh-CN', {
+                                timeZone: entry.timezone || timezone,
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                            <strong>{entry.title.replace(/^#+\s*/, '')}</strong>
+                            {entry.id === current.id && <small>当前</small>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            {!current && <div className={s.listEmpty}>选择一条日志，查看同项目的历次记录。</div>}
+          </aside>
+        </div>
       </div>
-    </div>
+    </ContextArea>
   );
 }

@@ -92,9 +92,9 @@ npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
 
 ```bash
 npm ci
-npm run build:cloud
+npm run build
 npx wrangler deploy --config wrangler.jsonc
 npx wrangler secret put APP_TOKEN --config wrangler.jsonc
 ```
 
-服务只提供同步 API，不托管网页。`/api/connection/info` 验证密钥并在首次连接时创建 `shared` 看板和初始栏目；已有数据不变。App 中填写这个 Worker 地址与密钥即可。原服务的 `UPDATES_URL` 可保留供 1.3 及更早客户端升级，新版不使用它。
+服务同时托管网页版与同步 API。网页版首次输入服务地址和共享密钥，验证成功后保存在当前浏览器 localStorage，设置中可退出并清除。静态页面可公开访问，数据请求仍须密钥。macOS 的个人日记和知识库不上传到网页。`/api/connection/info` 验证密钥并在首次连接时创建 `shared` 看板和初始栏目；已有数据不变。App 中填写这个 Worker 地址与密钥即可。原服务的 `UPDATES_URL` 可保留供 1.3 及更早客户端升级，新版不使用它。

@@ -1,5 +1,4 @@
 import { useState, type CSSProperties } from 'react';
-import { isDesktop } from '../desktop';
 import { useFlowStore } from '../store/useFlowStore';
 import { cx, hue } from '../utils';
 import { Icon, Logo } from './Icon';
@@ -85,7 +84,7 @@ export function Sidebar({
           </button>
         </div>
 
-        {!isDesktop && (
+        {false && (
           <div className={s.sectionHead}>
             <span>Boards</span>
             <button
@@ -220,17 +219,17 @@ export function Sidebar({
           <MenuItem
             icon="pencil"
             onClick={() => {
-              setRenaming(menu.board.id);
+              setRenaming(menu!.board.id);
               setMenu(null);
             }}
           >
             Rename
           </MenuItem>
-          {!isDesktop && (
+          {false && (
             <MenuItem
               icon="link"
               onClick={() => {
-                copyInvite(menu.board);
+                copyInvite(menu!.board);
                 setMenu(null);
               }}
             >
@@ -238,12 +237,12 @@ export function Sidebar({
             </MenuItem>
           )}
           <MenuSeparator />
-          {!isDesktop && (
+          {false && (
             <MenuItem
               icon="trash"
               danger
               onClick={() => {
-                confirmDelete(menu.board);
+                confirmDelete(menu!.board);
                 setMenu(null);
               }}
             >

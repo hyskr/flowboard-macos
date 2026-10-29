@@ -24,6 +24,18 @@ export function Topbar({ onOpenNav, sidebarHidden, onToggleSidebar, filtersOpen,
   const { setActiveView, setSearchQuery, openModal } = useFlowStore.getState();
   const searchRef = useRef<HTMLInputElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [syncing,setSyncing]=useState(false);
+  const synchronize=async()=>{
+    if(syncing)return;
+    setSyncing(true);
+    const state=useFlowStore.getState();
+    try {
+      await state.saveSettings({workerUrl:state.workerUrl,syncInterval:state.syncInterval});
+      const latest=useFlowStore.getState();
+      state.toast(latest.workerStatus?'共享看板已同步':latest.syncError||'连接尚未恢复，修改保留在本机',latest.workerStatus?'✓':'⚠');
+    } catch(error){state.toast(error instanceof Error?error.message:'同步失败，修改保留在本机','⚠');}
+    finally{setSyncing(false);}
+  };
 
   const focusSearch = () => {
     setSearchOpen(true);
@@ -135,6 +147,9 @@ export function Topbar({ onOpenNav, sidebarHidden, onToggleSidebar, filtersOpen,
         <Icon name="search" size={17} />
       </button>
 
+      <button className={cx(ui.btn, ui.secondary, s.syncBtn)} disabled={!board||syncing} onClick={()=>void synchronize()} aria-label={syncing?'正在同步':'立即同步'} title="立即同步">
+        <Icon name="cloud" size={15}/><span className={s.syncLabel}>{syncing?'同步中…':'同步'}</span>
+      </button>
       <button className={cx(ui.btn, ui.primary, s.newBtn)} onClick={() => openModal('card', {})} disabled={!board} title="New card (C)">
         <Icon name="plus" size={15} strokeWidth={2.2} />
         <span className={s.newLabel}>新增卡片</span>

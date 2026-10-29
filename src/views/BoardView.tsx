@@ -225,7 +225,7 @@ function AddColumn({ boardId }: { boardId: string }) {
   const [adding, setAdding] = useState(false);
   if (!adding) {
     return (
-      <button className={s.addColumn} onClick={() => setAdding(true)}>
+      <button data-add-column className={s.addColumn} onClick={() => setAdding(true)}>
         <Icon name="plus" size={15} /> 添加栏目
       </button>
     );

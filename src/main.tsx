@@ -1,4 +1,6 @@
 import './global.css'
+import { handleZoomKey } from './displayPreferences'
+window.addEventListener('keydown',handleZoomKey,true)
 import { isDesktop } from './desktop'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { saveConnection } from '../desktop';
+import { isDesktop, saveConnection } from '../desktop';
 import { Logo } from './Icon';
 import { cx } from '../utils';
 import ui from './ui.module.css';
@@ -14,13 +14,13 @@ export function ConnectionForm({initialUrl='',initialError=''}:{initialUrl?:stri
   const connect=async()=>{
     if(busy)return;
     setBusy(true);setError('');setMessage('正在连接…');
-    try{await saveConnection(url,key);setKey('');setMessage('连接已保存，正在重新打开应用…');await relaunch();}
+    try{await saveConnection(url,key);setKey('');setMessage('连接已保存，正在重新打开应用…');if(isDesktop)await relaunch();else location.reload();}
     catch(error){setMessage('');setError(String(error));setBusy(false);}
   };
   return <div onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();void connect();}}}>
     <div className={ui.field}><label className={ui.label} htmlFor="connection-url">服务地址</label><input id="connection-url" className={ui.input} type="url" placeholder="https://your-worker.workers.dev" value={url} onChange={event=>setUrl(event.target.value)} autoFocus disabled={busy}/></div>
     <div className={ui.field}><label className={ui.label} htmlFor="connection-key">共享密钥</label><input id="connection-key" className={ui.input} type="password" autoComplete="off" placeholder="输入你们共用的密钥" value={key} onChange={event=>setKey(event.target.value)} disabled={busy}/></div>
-    <p className={ui.hint} style={{margin:'12px 0'}}>密钥保存在本机系统钥匙串。共享看板和 skill 使用同一份连接。</p>
+    <p className={ui.hint} style={{margin:'12px 0'}}>{isDesktop?'密钥保存在本机系统钥匙串。共享看板和 skill 使用同一份连接。':'连接信息保存在当前浏览器，下次自动连接。可在设置中退出并清除密钥。'}</p>
     {error&&<p role="alert" style={{color:'var(--danger)',marginBottom:12}}>{error}</p>}
     {message&&<p role="status" style={{color:'var(--fg-muted)',marginBottom:12}}>{message}</p>}
     <button className={cx(ui.btn,ui.primary)} disabled={busy||!url.trim()||!key.trim()} onClick={()=>void connect()}>{busy?'正在连接…':'连接并打开看板'}</button>

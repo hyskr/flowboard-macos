@@ -39,7 +39,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 行记 v__VERSION__
-          releaseBody: 三列开发记录、项目分类与历史、日历筛选、透明浮动目录、方向键切换和统一看板样式。Apple Silicon / Intel 通用应用。
+          releaseBody: 精简看板顶栏、上下文右键菜单、页面缩放和浏览器本地保存连接的网页版。Apple Silicon / Intel 通用应用。
           releaseDraft: false
           uploadUpdaterJson: true
           args: --target universal-apple-darwin --bundles app,dmg

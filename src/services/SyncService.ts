@@ -1,4 +1,4 @@
-import { isDesktop, desktopRequest } from '../desktop';
+import { isDesktop, desktopRequest, browserConnection } from '../desktop';
 import { WORKER_URL } from '../constants.ts';
 import { uid } from '../utils.ts';
 import { CryptoService } from './CryptoService.ts';
@@ -68,7 +68,7 @@ export class SyncService {
     if (isDesktop) return desktopRequest(path, body);
     const r = await fetch(this.url(path), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(browserConnection()?.appToken ? {'X-FlowBoard-Access':browserConnection()!.appToken}: {}) },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeout),
     });

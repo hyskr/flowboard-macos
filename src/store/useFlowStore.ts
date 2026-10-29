@@ -156,7 +156,7 @@ export const useFlowStore = create<FlowState>((set, get) => {
       try { void navigator.storage?.persist?.().catch(() => {}); }
       catch { /* Storage permissions must not prevent opening existing boards. */ }
       try {
-        const desktop=isDesktop ? await desktopInfo() : null;
+        const desktop=await desktopInfo();
         if (desktop) {
           if (!desktop.configured || !desktop.workerUrl) throw new Error('请先连接共享看板。');
           await db.openForEndpoint(desktop.workerUrl);
@@ -209,7 +209,7 @@ export const useFlowStore = create<FlowState>((set, get) => {
           isLoading: false,
         });
 
-        if (isDesktop) {
+        if (desktop.configured) {
           if (!get().boards.some(b => b.id === 'shared')) {
             if (!await get().joinBoard('shared', '')) throw new Error('暂时无法打开共享看板，请连接网络后重新打开应用。');
           }

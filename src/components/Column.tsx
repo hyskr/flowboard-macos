@@ -21,6 +21,7 @@ export function SortableColumn({ col, cards, totalCount }: { col: Column; cards:
   const [renaming, setRenaming] = useState(false);
   const [adding, setAdding] = useState(false);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const [point,setPoint]=useState<{x:number;y:number}|undefined>();
 
   const confirmDelete = () => openModal('confirm', {
     title: `Delete “${col.name}”?`,
@@ -31,6 +32,7 @@ export function SortableColumn({ col, cards, totalCount }: { col: Column; cards:
 
   return (
     <section
+      onContextMenu={event=>{if((event.target as HTMLElement).closest('input,textarea'))return;event.preventDefault();event.stopPropagation();setPoint({x:event.clientX,y:event.clientY});setMenu(event.currentTarget);}}
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cx(s.column, isDragging && s.placeholder)}
@@ -52,7 +54,7 @@ export function SortableColumn({ col, cards, totalCount }: { col: Column; cards:
           )}
           <span className={ui.count} title={`${totalCount} cards in this column`}>{cards.length === totalCount ? cards.length : `${cards.length}/${totalCount}`}</span>
         </div>
-        <button className={cx(ui.iconBtn, ui.small, s.action, menu && s.actionActive)} onClick={(e) => setMenu(menu ? null : e.currentTarget)} aria-label={`Options for ${col.name}`} aria-haspopup="menu">
+        <button className={cx(ui.iconBtn, ui.small, s.action, menu && s.actionActive)} onClick={(e) => {setPoint(undefined);setMenu(menu ? null : e.currentTarget);}} aria-label={`Options for ${col.name}`} aria-haspopup="menu">
           <Icon name="more" size={15} />
         </button>
       </header>
@@ -72,7 +74,7 @@ export function SortableColumn({ col, cards, totalCount }: { col: Column; cards:
       )}
 
       {menu && (
-        <Menu anchor={menu} onClose={() => setMenu(null)}>
+        <Menu anchor={menu} point={point} onClose={() => setMenu(null)}>
           <MenuItem icon="pencil" onClick={() => { setMenu(null); setRenaming(true); }}>Rename</MenuItem>
           <MenuItem icon="plus" onClick={() => { setMenu(null); setAdding(true); }}>Add card</MenuItem>
           <MenuSeparator />

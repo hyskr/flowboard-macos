@@ -9,6 +9,7 @@ import {
   type Integration,
   type PersonalSettings,
 } from './api';
+import { useDisplayPreferences } from '../displayPreferences';
 import { PageHeader } from './PageHeader';
 import { DesktopUpdates } from '../components/DesktopUpdates';
 import { ConnectionForm } from '../components/ConnectionSetup';
@@ -24,6 +25,8 @@ export function Settings({
   connection: DesktopInfo | null;
   onToggleSidebar?: () => void;
 }) {
+  const zoom=useDisplayPreferences(value=>value.zoom);
+  const setZoom=useDisplayPreferences(value=>value.setZoom);
   const [settings, setSettings] = useState<PersonalSettings | null>(null);
   const [integrations, setIntegrations] = useState<Record<string, Integration>>({});
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
@@ -86,6 +89,7 @@ export function Settings({
             <button onClick={() => setMessage('')}>关闭</button>
           </div>
         )}
+        <section><h2>显示</h2><label htmlFor="page-zoom">页面缩放<select id="page-zoom" className={ui.input} value={zoom} onChange={event=>setZoom(Number(event.target.value))}>{[75,80,90,100,110,125,150].map(value=><option key={value} value={value}>{value}%</option>)}</select><button className={cx(ui.btn,ui.ghost)} onClick={()=>setZoom(100)}>恢复默认</button></label><p>⌘ + 放大 · ⌘ − 缩小 · ⌘ 0 恢复 100%。缩放设置保存在本机。</p></section>
         <section>
           <h2>个人记录</h2>
           <p>保存在此 Mac。未连接看板、断网或关闭窗口，都可以通过统一 Skill 保存。</p>
