@@ -208,7 +208,7 @@ pub fn save(s: &Store, r: &Value) -> Result<Value> {
     refresh(s)?;
     let mut value = s.get("knowledge", &path)?.ok_or("索引未更新")?;
     value["topic"] = json!(topic);
-    for field in ["usage", "topics", "project", "sourceJournalIds"] {
+    for field in ["title", "usage", "topics", "project", "sourceJournalIds"] {
         if let Some(v) = r.get(field) {
             value[field] = v.clone();
         }
@@ -216,7 +216,7 @@ pub fn save(s: &Store, r: &Value) -> Result<Value> {
     s.put("knowledge", &path, &value)?;
     // The Markdown frontmatter keeps discovery fields available after rebuilding the index.
     let original = fs::read_to_string(&full)?;
-    let (mut front, content) = if let Some((header, content)) = original
+    let (mut front, mut content) = if let Some((header, content)) = original
         .strip_prefix("---\n")
         .and_then(|s| s.split_once("\n---\n"))
     {
@@ -227,10 +227,15 @@ pub fn save(s: &Store, r: &Value) -> Result<Value> {
     } else {
         (json!({}), original.clone())
     };
-    for key in ["topic", "usage", "topics", "sourceJournalIds"] {
+    for key in ["title", "topic", "usage", "topics", "sourceJournalIds"] {
         if let Some(v) = value.get(key) {
             front[key] = v.clone();
         }
+    }
+    if let Some(title) = r["title"].as_str().filter(|v| !v.trim().is_empty()) {
+        content = Regex::new(r"(?m)^# [^\n]+$")?
+            .replace(&content, format!("# {title}"))
+            .to_string();
     }
     let complete = format!("---\n{}---\n\n{}", serde_yaml::to_string(&front)?, content);
     if complete != original {

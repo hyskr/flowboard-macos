@@ -42,6 +42,14 @@ export function KnowledgeView({
       clearInterval(timer);
     };
   }, [refresh]);
+  useEffect(() => {
+    if (!current || editing) return;
+    const updated = rows.find((row) => row.path === current.path);
+    if (updated && updated.version !== current.version)
+      void local<Knowledge>('knowledge.read', { path: current.path })
+        .then(setCurrent)
+        .catch((e) => setMessage(String(e)));
+  }, [rows, current?.path, current?.version, !!editing]);
   const select = async (path: string) => {
     if (editing) return;
     try {
@@ -58,6 +66,8 @@ export function KnowledgeView({
       const result = await local<{ status: string; record: Knowledge }>('knowledge.save', {
         ...editing,
         path: editing.path || undefined,
+        title: editing.title || undefined,
+        topics: editing.topics.filter(Boolean),
         baseBody: base?.body,
         baseVersion: base?.version,
       });
@@ -175,6 +185,14 @@ export function KnowledgeView({
           {editing ? (
             <div className={s.editor}>
               <h1>{base ? '编辑手册' : '新增手册'}</h1>
+              <label>
+                标题
+                <input
+                  className={ui.input}
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                />
+              </label>
               <label>
                 用途
                 <input
