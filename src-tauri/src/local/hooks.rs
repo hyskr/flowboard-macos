@@ -8,6 +8,7 @@ pub fn ack(s:&Store,r:&Value)->Result<Value>{
     let checkpoint=text(r,"checkpointId");
     if !checkpoint.is_empty() && value["pending"]["id"]!=checkpoint{return Err("检查点已处理或不属于当前会话".into());}
     let through=value["pending"]["through"].as_i64().unwrap_or(value["sequence"].as_i64().unwrap_or(0));
+    value.as_object_mut().unwrap().remove("prepared");
     value["acknowledged"]=json!(through);value["afterTurn"]=value["pending"]["throughTurn"].clone();value["pending"]=Value::Null;value["lastCheck"]=json!(now());
     if let Some(hints)=value["hints"].as_array_mut(){hints.retain(|h|h["sequence"].as_i64().unwrap_or(0)>through);}
     s.put("sessions",&key,&value)?;Ok(json!({"status":"acknowledged","through":through}))
@@ -61,7 +62,7 @@ pub fn handle(s:&Store,r:&Value)->Result<Value>{
     let prompt=format!("行记检查点：仅处理此范围内新增且有实质价值的成果、研究、排障或决定。利用当前对话，不重读整段工具历史。读取 xingji/references/journal.md 后，用 checkpoint.save 保存已有正文或 checkpoint.ack 明确跳过；失败时通过 checkpoint.status 取回正文重试，不重新总结。会话 {}，检查点 {}。范围与线索：{}",key,text(&pending,"id"),pending);
     state["pending"]["notified"]=json!(true);if resume{state["pending"]["resumed"]=json!(true);}s.put("sessions",&key,&state)?;
     if event=="Stop" && r["stop_hook_active"]!=true {Ok(json!({"decision":"block","reason":prompt}))}
-    else if event=="PreCompact" {Ok(json!({"systemMessage":prompt}))}
+    else if event=="PreCompact" {Ok(json!({"continue":false,"stopReason":prompt}))}
     else if resume {Ok(json!({"hookSpecificOutput":{"hookEventName":event,"additionalContext":prompt}}))}
     else{Ok(json!({}))}
 }

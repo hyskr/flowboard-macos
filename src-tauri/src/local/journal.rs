@@ -13,7 +13,7 @@ fn sections(body:&str)->Vec<(String,String)> {
         if !fence && line.starts_with("## "){result.push((line[3..].trim().to_string(),String::new()));}
         else {let b=&mut result.last_mut().unwrap().1;b.push_str(line);b.push('\n');}
     }
-    for (_,body) in &mut result{*body=body.trim_end().to_string();}result
+    for (_,body) in &mut result{*body=body.trim_matches('\n').to_string();}result
 }
 fn apply(body:&str,patches:&[Value])->Result<String>{
     let mut parts=sections(body);
