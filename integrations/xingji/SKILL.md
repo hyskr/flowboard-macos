@@ -6,7 +6,7 @@ metadata:
 ---
 # 行记
 
-入口是本目录的 `scripts/xingji`，调用本机 App 的 Rust 命令。窗口关闭时仍可读写个人记录，不调用云端模型。命令名作第一个参数，JSON 通过标准输入传入；例如 `scripts/xingji knowledge.search <<'JSON'`。使用本文件所在目录的绝对路径。
+入口是本目录的 `scripts/xingji`，调用本机 App 的 Rust 命令。窗口关闭时仍可读写个人记录，不调用云端模型。命令名作第一个参数，写入请求带稳定 `requestId`，重试沿用；JSON 通过标准输入传入；例如 `scripts/xingji knowledge.search <<'JSON'`。使用本文件所在目录的绝对路径。
 
 - 开始需要复用个人方法的任务，读 [knowledge.md](references/knowledge.md)。先搜索少量候选，匹配后读正文或章节；本聊天已读且未变化的不重复加载。小操作不反复搜索。
 - 用户确认后续行动、改变要求或状态，读 [tasks.md](references/tasks.md)，更新原卡。

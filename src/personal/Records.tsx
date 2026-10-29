@@ -5,27 +5,396 @@ import { openSourceChat } from '../desktop';
 import { cx } from '../utils';
 import ui from '../components/ui.module.css';
 import s from './Personal.module.css';
-function RecordBody({body,onWiki}:{body:string;onWiki:(target:string)=>void}){
- const lines=body.split('\n');const visible:string[]=[];const details:string[]=[];let folded=false;
- for(const line of lines){if(/^#{2,4} (修改范围|变更文件|文件清单|内部标识)/.test(line)){folded=true;details.push(line);continue;}if(folded&&/^#{1,4} /.test(line))folded=false;if(folded||/^\*\*(项目|标签|来源|触发)\*\*/.test(line))details.push(line);else visible.push(line);}
- return <><Markdown body={visible.join('\n')} onWiki={onWiki}/>{!!details.length&&<details className={s.properties}><summary>文件清单与原记录属性</summary><Markdown body={details.join('\n')} onWiki={onWiki}/></details>}</>;
+function RecordBody({ body, onWiki }: { body: string; onWiki: (target: string) => void }) {
+  const lines = body.split('\n');
+  const visible: string[] = [];
+  const details: string[] = [];
+  let folded = false;
+  for (const line of lines) {
+    if (/^#{2,4} (修改范围|变更文件|文件清单|内部标识)/.test(line)) {
+      folded = true;
+      details.push(line);
+      continue;
+    }
+    if (folded && /^#{1,4} /.test(line)) folded = false;
+    if (folded || /^\*\*(项目|标签|来源|触发)\*\*/.test(line)) details.push(line);
+    else visible.push(line);
+  }
+  return (
+    <>
+      <Markdown body={visible.join('\n')} onWiki={onWiki} />
+      {!!details.length && (
+        <details className={s.properties}>
+          <summary>文件清单与原记录属性</summary>
+          <Markdown body={details.join('\n')} onWiki={onWiki} />
+        </details>
+      )}
+    </>
+  );
 }
-function groupBy<T>(rows:T[],key:(v:T)=>string){const map=new Map<string,T[]>();for(const row of rows){const k=key(row);map.set(k,[...(map.get(k)||[]),row]);}return map;}
-export function Records({onWiki,initialId}:{onWiki:(target:string)=>void;initialId?:string}){
- const [entries,setEntries]=useState<Entry[]>([]);const [selected,setSelected]=useState(initialId||'');const [query,setQuery]=useState('');const [deleted,setDeleted]=useState(false);const [from,setFrom]=useState('');const [to,setTo]=useState('');const [editing,setEditing]=useState<Entry|null>(null);const [message,setMessage]=useState('');const [history,setHistory]=useState<Entry[]|null>(null);const [busy,setBusy]=useState(false);const [base,setBase]=useState<Entry|null>(null);
- const refresh=useCallback(()=>local<Entry[]>('journal.list',{query,deleted,from,to}).then(setEntries).catch(e=>setMessage(String(e))),[query,deleted,from,to]);
- useEffect(()=>{void refresh();const handler=()=>void refresh();window.addEventListener('focus',handler);return()=>window.removeEventListener('focus',handler);},[refresh]);
- useEffect(()=>{if(initialId)setSelected(initialId);},[initialId]);
- const current=entries.find(e=>e.id===selected);const groups=groupBy(entries,e=>e.date);const save=async()=>{if(!editing||busy)return;setBusy(true);try{const old=base;const result=await local<{status:string}>('journal.save',{...editing,date:editing.date||undefined,baseVersion:old?.version,baseValues:old?{title:old.title,body:old.body}:{}});setMessage(result.status==='saved'?'记录已保存':'存在待处理修改，请在设置中选择采用哪一份');setEditing(null);setSelected(editing.id);await refresh();}catch(e){setMessage(String(e));}finally{setBusy(false);}};
- const remove=async(entry:Entry,restore=false)=>{try{await local(restore?'journal.restore':'journal.delete',{id:entry.id,baseVersion:entry.version});setMessage(restore?'已恢复':'已移到回收站，可撤销');await refresh();}catch(e){setMessage(String(e));}};
- return <div className={s.page}><header className={s.header}><div><h1>开发记录</h1><p>每日概览，保留每个阶段的完整过程。</p></div><div className={s.actions}><input className={ui.input} placeholder="搜索标题或正文" aria-label="搜索开发记录" value={query} onChange={e=>setQuery(e.target.value)}/><button className={cx(ui.btn,ui.primary)} onClick={()=>{setHistory(null);setBase(null);setEditing({id:crypto.randomUUID(),title:'',body:'',version:0,date:'',occurredAt:new Date().toISOString(),savedAt:'',sessionId:'manual',source:'manual'});}}>新增记录</button><button className={cx(ui.btn,ui.secondary)} onClick={()=>{setDeleted(!deleted);setEditing(null);}}>{deleted?'返回记录':'回收站'}</button></div></header>
- {message&&<div className={s.notice} role="status"><span>{message}</span><button onClick={()=>setMessage('')}>关闭</button></div>}
- <div className={s.split}><aside className={s.list} aria-label="按日期分组的记录"><div className={s.actions}><input className={ui.input} style={{width:125}} type="date" aria-label="开始日期" value={from} onChange={e=>setFrom(e.target.value)}/><input className={ui.input} style={{width:125}} type="date" aria-label="结束日期" value={to} onChange={e=>setTo(e.target.value)}/><button className={cx(ui.btn,ui.ghost,ui.sm)} onClick={()=>void local<{path:string}>('journal.export',{from,to,query}).then(v=>setMessage(`已导出：${v.path}`)).catch(e=>setMessage(String(e)))}>导出此范围 Markdown</button></div>
- {[...groups].map(([date,day])=><section key={date}><h2>{date}</h2>{[...groupBy(day,e=>e.sessionId)].map(([session,rows])=><div key={session}><h3>{rows[0].project||'工作记录'}{rows[0].source==='import'?' · 导入':''}</h3>{rows.map(entry=><button className={s.item} aria-current={entry.id===selected} key={entry.id} onClick={()=>{if(editing)return;setSelected(entry.id);setHistory(null);}}><strong>{entry.occurredAt.slice(11,16)}　{entry.title}</strong><div className={s.preview}>{entry.body.split('\n').filter(l=>l.trim()&&!l.startsWith('#')&&!l.startsWith('<')&&!l.startsWith('**标签')).slice(0,3).join('\n')}</div></button>)}</div>)}</section>)}
- {!entries.length&&<p className={s.meta} style={{padding:12}}>这里还没有记录。可以新增，或在设置中导入原日记。</p>}</aside>
- <article className={s.reader}>{editing?<div className={s.editor}><h1>{editing.version?'编辑阶段':'新增阶段'}</h1><label>标题<input className={ui.input} value={editing.title} onChange={e=>setEditing({...editing,title:e.target.value})}/></label><label>正文 · Markdown<textarea className={ui.textarea} value={editing.body} onChange={e=>setEditing({...editing,body:e.target.value})}/></label><label>可选来源项目<input className={ui.input} value={editing.project||''} onChange={e=>setEditing({...editing,project:e.target.value})}/></label>{!editing.version&&<label>发生日期<input className={ui.input} type="date" value={editing.date} onChange={e=>setEditing({...editing,date:e.target.value})}/></label>}<div className={s.actions}><button className={cx(ui.btn,ui.primary)} disabled={busy||!editing.title.trim()||!editing.body.trim()} onClick={()=>void save()}>保存</button><button className={cx(ui.btn,ui.secondary)} disabled={busy} onClick={()=>setEditing(null)}>取消</button></div></div>:current?<>
- <h1>{current.title}</h1><div className={s.meta}>{current.date} · {current.project||'个人记录'} · 版本 {current.version}</div><div className={s.actions} style={{marginBottom:24}}>{deleted?<button className={cx(ui.btn,ui.secondary)} onClick={()=>void remove(current,true)}>撤销删除</button>:<><button className={cx(ui.btn,ui.secondary)} onClick={()=>{setBase(current);setEditing({...current});}}>编辑</button><button className={cx(ui.btn,ui.ghost)} onClick={()=>void remove(current)}>删除</button></>}<button className={cx(ui.btn,ui.ghost)} onClick={()=>void navigator.clipboard.writeText(current.body).then(()=>setMessage('已复制 Markdown'))}>复制 Markdown</button><button className={cx(ui.btn,ui.ghost)} onClick={()=>void local<Entry[]>('history',{kind:'journal',id:current.id}).then(setHistory)}>修订记录</button>{current.sourceChat&&<button className={cx(ui.btn,ui.ghost)} onClick={()=>void openSourceChat(current.sourceChat!).catch(e=>setMessage(String(e)))}>来源聊天</button>}</div>
- <RecordBody body={current.body} onWiki={onWiki}/>{current.artifacts?.length?<div className={s.actions} style={{marginTop:20}}>{current.artifacts.map(a=><button className={cx(ui.btn,ui.secondary)} key={a.path} onClick={()=>void openPath(a.path).catch(e=>setMessage(String(e)))}>{a.label||'打开产物'}</button>)}</div>:null}<details className={s.properties}><summary>属性与来源</summary>{current.importPath&&<button className={cx(ui.btn,ui.ghost)} onClick={()=>void openPath(current.importPath!).catch(e=>setMessage(String(e)))}>打开原日记文件</button>}<p>发生时间：{current.occurredAt}<br/>保存时间：{current.savedAt}<br/>客户端：{current.source}<br/>阶段 ID：{current.id}<br/>聊天分组：{current.sessionId}</p>{current.taskLinks?.length?<pre>{JSON.stringify(current.taskLinks,null,2)}</pre>:null}</details>
- {history&&<section><h2>历史修订</h2>{history.map(v=><details className={s.properties} key={v.version}><summary>版本 {v.version} · {v.savedAt}</summary><Markdown body={v.body}/></details>)}</section>}
- </>:<div className={s.empty}><h2>让做过的事，留下脉络。</h2><p>选择一天的阶段记录展开阅读。完整正文保存在本机，重要产物与来源聊天可以直接打开。</p></div>}</article></div></div>;
+function groupBy<T>(rows: T[], key: (v: T) => string) {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const k = key(row);
+    map.set(k, [...(map.get(k) || []), row]);
+  }
+  return map;
+}
+export function Records({ onWiki, initialId }: { onWiki: (target: string) => void; initialId?: string }) {
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [selected, setSelected] = useState(initialId || '');
+  const [query, setQuery] = useState('');
+  const [deleted, setDeleted] = useState(false);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [editing, setEditing] = useState<Entry | null>(null);
+  const [message, setMessage] = useState('');
+  const [history, setHistory] = useState<Entry[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [base, setBase] = useState<Entry | null>(null);
+  const refresh = useCallback(
+    () =>
+      local<Entry[]>('journal.list', { query, deleted, from, to })
+        .then(setEntries)
+        .catch((e) => setMessage(String(e))),
+    [query, deleted, from, to],
+  );
+  useEffect(() => {
+    void refresh();
+    const handler = () => void refresh();
+    window.addEventListener('focus', handler);
+    return () => window.removeEventListener('focus', handler);
+  }, [refresh]);
+  useEffect(() => {
+    if (initialId) setSelected(initialId);
+  }, [initialId]);
+  const current = entries.find((e) => e.id === selected);
+  const groups = groupBy(entries, (e) => e.date);
+  const save = async () => {
+    if (!editing || busy) return;
+    setBusy(true);
+    try {
+      const old = base;
+      const result = await local<{ status: string }>('journal.save', {
+        ...editing,
+        date: editing.date || undefined,
+        baseVersion: old?.version,
+        baseValues: old ? { title: old.title, body: old.body } : {},
+      });
+      setMessage(result.status === 'saved' ? '记录已保存' : '存在待处理修改，请在设置中选择采用哪一份');
+      setEditing(null);
+      setSelected(editing.id);
+      await refresh();
+    } catch (e) {
+      setMessage(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async (entry: Entry, restore = false) => {
+    try {
+      await local(restore ? 'journal.restore' : 'journal.delete', {
+        id: entry.id,
+        baseVersion: entry.version,
+      });
+      setMessage(restore ? '已恢复' : '已移到回收站，可撤销');
+      await refresh();
+    } catch (e) {
+      setMessage(String(e));
+    }
+  };
+  return (
+    <div className={s.page}>
+      <header className={s.header}>
+        <div>
+          <h1>开发记录</h1>
+          <p>每日概览，保留每个阶段的完整过程。</p>
+        </div>
+        <div className={s.actions}>
+          <input
+            className={ui.input}
+            placeholder="搜索标题或正文"
+            aria-label="搜索开发记录"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button
+            className={cx(ui.btn, ui.primary)}
+            onClick={() => {
+              setHistory(null);
+              setBase(null);
+              setEditing({
+                id: crypto.randomUUID(),
+                title: '',
+                body: '',
+                version: 0,
+                date: '',
+                occurredAt: new Date().toISOString(),
+                savedAt: '',
+                sessionId: 'manual',
+                source: 'manual',
+              });
+            }}
+          >
+            新增记录
+          </button>
+          <button
+            className={cx(ui.btn, ui.secondary)}
+            onClick={() => {
+              setDeleted(!deleted);
+              setEditing(null);
+            }}
+          >
+            {deleted ? '返回记录' : '回收站'}
+          </button>
+        </div>
+      </header>
+      {message && (
+        <div className={s.notice} role="status">
+          <span>{message}</span>
+          <button onClick={() => setMessage('')}>关闭</button>
+        </div>
+      )}
+      <div className={s.split}>
+        <aside className={s.list} aria-label="按日期分组的记录">
+          <div className={s.actions}>
+            <input
+              className={ui.input}
+              style={{ width: 125 }}
+              type="date"
+              aria-label="开始日期"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+            <input
+              className={ui.input}
+              style={{ width: 125 }}
+              type="date"
+              aria-label="结束日期"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+            <button
+              className={cx(ui.btn, ui.ghost, ui.sm)}
+              onClick={() =>
+                void local<{ path: string }>('journal.export', { from, to, query })
+                  .then((v) => setMessage(`已导出：${v.path}`))
+                  .catch((e) => setMessage(String(e)))
+              }
+            >
+              导出此范围 Markdown
+            </button>
+          </div>
+          {[...groups].map(([date, day]) => (
+            <section key={date}>
+              <h2>{date}</h2>
+              {[...groupBy(day, (e) => e.sessionId)].map(([session, rows]) => (
+                <div key={session}>
+                  <h3>
+                    {rows[0].project || '工作记录'}
+                    {rows[0].source === 'import' ? ' · 导入' : ''}
+                  </h3>
+                  {rows.map((entry) => (
+                    <button
+                      className={s.item}
+                      aria-current={entry.id === selected}
+                      key={entry.id}
+                      onClick={() => {
+                        if (editing) return;
+                        setSelected(entry.id);
+                        setHistory(null);
+                      }}
+                    >
+                      <strong>
+                        {entry.occurredAt.slice(11, 16)}　{entry.title}
+                      </strong>
+                      <div className={s.preview}>
+                        {entry.body
+                          .split('\n')
+                          .filter(
+                            (l) =>
+                              l.trim() && !l.startsWith('#') && !l.startsWith('<') && !l.startsWith('**标签'),
+                          )
+                          .slice(0, 3)
+                          .join('\n')}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </section>
+          ))}
+          {!entries.length && (
+            <p className={s.meta} style={{ padding: 12 }}>
+              这里还没有记录。可以新增，或在设置中导入原日记。
+            </p>
+          )}
+        </aside>
+        <article className={s.reader}>
+          {editing ? (
+            <div className={s.editor}>
+              <h1>{editing.version ? '编辑阶段' : '新增阶段'}</h1>
+              <label>
+                标题
+                <input
+                  className={ui.input}
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                />
+              </label>
+              <label>
+                正文 · Markdown
+                <textarea
+                  className={ui.textarea}
+                  value={editing.body}
+                  onChange={(e) => setEditing({ ...editing, body: e.target.value })}
+                />
+              </label>
+              <label>
+                可选来源项目
+                <input
+                  className={ui.input}
+                  value={editing.project || ''}
+                  onChange={(e) => setEditing({ ...editing, project: e.target.value })}
+                />
+              </label>
+              {!editing.version && (
+                <label>
+                  发生日期
+                  <input
+                    className={ui.input}
+                    type="date"
+                    value={editing.date}
+                    onChange={(e) => setEditing({ ...editing, date: e.target.value })}
+                  />
+                </label>
+              )}
+              <div className={s.actions}>
+                <button
+                  className={cx(ui.btn, ui.primary)}
+                  disabled={busy || !editing.title.trim() || !editing.body.trim()}
+                  onClick={() => void save()}
+                >
+                  保存
+                </button>
+                <button className={cx(ui.btn, ui.secondary)} disabled={busy} onClick={() => setEditing(null)}>
+                  取消
+                </button>
+              </div>
+            </div>
+          ) : current ? (
+            <>
+              <h1>{current.title}</h1>
+              <div className={s.meta}>
+                {current.date} · {current.project || '个人记录'} · 版本 {current.version}
+              </div>
+              <div className={s.actions} style={{ marginBottom: 24 }}>
+                {deleted ? (
+                  <button className={cx(ui.btn, ui.secondary)} onClick={() => void remove(current, true)}>
+                    撤销删除
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className={cx(ui.btn, ui.secondary)}
+                      onClick={() => {
+                        setBase(current);
+                        setEditing({ ...current });
+                      }}
+                    >
+                      编辑
+                    </button>
+                    <button className={cx(ui.btn, ui.ghost)} onClick={() => void remove(current)}>
+                      删除
+                    </button>
+                  </>
+                )}
+                <button
+                  className={cx(ui.btn, ui.ghost)}
+                  onClick={() =>
+                    void navigator.clipboard.writeText(current.body).then(() => setMessage('已复制 Markdown'))
+                  }
+                >
+                  复制 Markdown
+                </button>
+                <button
+                  className={cx(ui.btn, ui.ghost)}
+                  onClick={() =>
+                    void local<Entry[]>('history', { kind: 'journal', id: current.id }).then(setHistory)
+                  }
+                >
+                  修订记录
+                </button>
+                {current.sourceChat && (
+                  <button
+                    className={cx(ui.btn, ui.ghost)}
+                    onClick={() =>
+                      void openSourceChat(current.sourceChat!).catch((e) => setMessage(String(e)))
+                    }
+                  >
+                    来源聊天
+                  </button>
+                )}
+              </div>
+              <RecordBody body={current.body} onWiki={onWiki} />
+              {current.artifacts?.length ? (
+                <div className={s.actions} style={{ marginTop: 20 }}>
+                  {current.artifacts.map((a) => (
+                    <button
+                      className={cx(ui.btn, ui.secondary)}
+                      key={a.path}
+                      onClick={() => void openPath(a.path).catch((e) => setMessage(String(e)))}
+                    >
+                      {a.label || '打开产物'}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <details className={s.properties}>
+                <summary>属性与来源</summary>
+                {current.importPath && (
+                  <button
+                    className={cx(ui.btn, ui.ghost)}
+                    onClick={() => void openPath(current.importPath!).catch((e) => setMessage(String(e)))}
+                  >
+                    打开原日记文件
+                  </button>
+                )}
+                <p>
+                  发生时间：{current.occurredAt}
+                  <br />
+                  保存时间：{current.savedAt}
+                  <br />
+                  客户端：{current.source}
+                  <br />
+                  阶段 ID：{current.id}
+                  <br />
+                  聊天分组：{current.sessionId}
+                </p>
+                {current.taskLinks?.length ? <pre>{JSON.stringify(current.taskLinks, null, 2)}</pre> : null}
+              </details>
+              {history && (
+                <section>
+                  <h2>历史修订</h2>
+                  {history.map((v) => (
+                    <details className={s.properties} key={v.version}>
+                      <summary>
+                        版本 {v.version} · {v.savedAt}
+                      </summary>
+                      <Markdown body={v.body} />
+                    </details>
+                  ))}
+                </section>
+              )}
+            </>
+          ) : (
+            <div className={s.empty}>
+              <h2>让做过的事，留下脉络。</h2>
+              <p>选择一天的阶段记录展开阅读。完整正文保存在本机，重要产物与来源聊天可以直接打开。</p>
+            </div>
+          )}
+        </article>
+      </div>
+    </div>
+  );
 }
