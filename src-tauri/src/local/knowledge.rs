@@ -25,6 +25,12 @@ fn resolve(s: &Store, value: &str) -> Result<PathBuf> {
     }
     Ok(full)
 }
+fn content(body: &str) -> &str {
+    body.strip_prefix("---\n")
+        .and_then(|s| s.split_once("\n---\n"))
+        .map(|(_, body)| body)
+        .unwrap_or(body)
+}
 fn meta(body: &str, path: &str) -> Value {
     let front = body
         .strip_prefix("---\n")
@@ -48,8 +54,10 @@ fn meta(body: &str, path: &str) -> Value {
     let usage = front["usage"]
         .as_str()
         .or_else(|| {
-            body.lines().find(|l| {
-                !l.trim().is_empty() && !l.starts_with(['#', '-', '<', '`']) && !l.contains(": ")
+            content(body).lines().find(|l| {
+                !l.trim().is_empty()
+                    && !l.starts_with(['#', '-', '<', '`', '*'])
+                    && !l.contains(": ")
             })
         })
         .unwrap_or("")
@@ -82,6 +90,12 @@ pub fn refresh(s: &Store) -> Result<Value> {
             .as_ref()
             .is_some_and(|c| text(c, "body") == body && c["deletedAt"].is_null())
         {
+            let mut indexed = current.unwrap();
+            let metadata = meta(&body, &path);
+            for (key, value) in metadata.as_object().unwrap() {
+                indexed[key] = value.clone();
+            }
+            s.put("knowledge", &path, &indexed)?;
             continue;
         }
         let previous = if let Some(ref c) = current {
@@ -138,7 +152,7 @@ pub fn search(s: &Store, r: &Value) -> Result<Value> {
                 return None;
             }
             let score = tokens.iter().filter(|t| title.contains(**t)).count();
-            v["snippet"] = json!(text(&v, "body")
+            v["snippet"] = json!(content(text(&v, "body"))
                 .lines()
                 .filter(|l| tokens.iter().any(|t| l.to_lowercase().contains(t)))
                 .take(3)

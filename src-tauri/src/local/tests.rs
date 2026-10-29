@@ -183,3 +183,28 @@ fn compact_only_prompts_for_new_work_and_ack_keeps_later_signals() {
     assert_eq!(current["acknowledged"], 1);
     fs::remove_dir_all(s.root.clone()).unwrap();
 }
+
+#[test]
+fn journal_project_filter_keeps_dates_and_unclassified_entries() {
+    let s = store();
+    for (key, project, date) in [
+        ("one", "Typst", "2026-10-15"),
+        ("two", "Typst", "2026-10-16"),
+        ("three", "行记", "2026-10-15"),
+        ("four", "", "2026-10-15"),
+    ] {
+        s.execute(json!({"op":"journal.save","id":key,"title":"进展","body":"完整正文","project":project,"date":date})).unwrap();
+    }
+    let rows = s
+        .execute(
+            json!({"op":"journal.list","project":"Typst","from":"2026-10-15","to":"2026-10-15"}),
+        )
+        .unwrap();
+    assert_eq!(rows.as_array().unwrap().len(), 1);
+    assert_eq!(rows[0]["id"], "one");
+    let rows = s
+        .execute(json!({"op":"journal.list","project":"未分类"}))
+        .unwrap();
+    assert_eq!(rows[0]["id"], "four");
+    fs::remove_dir_all(s.root.clone()).unwrap();
+}

@@ -195,3 +195,7 @@
 }
 
 @keyframes fade { from { opacity: 0; } }
+
+.personal { display:flex; flex-direction:column; gap:4px; padding-top:12px; }
+.personal .navItem { height:44px; font-size:13px; }
+.navItem[aria-current='page'] { background:var(--accent-soft); color:var(--fg); }

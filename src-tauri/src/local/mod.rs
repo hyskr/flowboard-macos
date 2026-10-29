@@ -378,10 +378,16 @@ pub fn open() -> Result<Store> {
 }
 #[tauri::command]
 pub async fn local_request(request: Value) -> std::result::Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || open()?.execute(request))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
+    static REQUESTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = REQUESTS
+            .lock()
+            .map_err(|_| "本地数据访问已中断，请重开应用")?;
+        open()?.execute(request)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

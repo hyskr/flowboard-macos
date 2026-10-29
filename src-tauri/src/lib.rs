@@ -12,19 +12,34 @@ use std::{
 use tauri::Manager;
 
 struct AppState {
-    connection: Option<connection::Connection>,
+    connection: std::sync::Arc<std::sync::Mutex<Option<connection::Connection>>>,
     client: reqwest::Client,
 }
 
 fn app_state() -> Result<AppState, String> {
     Ok(AppState {
-        connection: connection::load().unwrap_or(None),
+        connection: Default::default(),
         client: reqwest::Client::builder()
             .timeout(Duration::from_secs(20))
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|e| e.to_string())?,
     })
+}
+
+async fn load_connection(state: &AppState) -> Result<connection::Connection, String> {
+    let cached = state.connection.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut cached = cached.lock().map_err(|_| "连接读取中断，请重新打开应用")?;
+        if cached.is_none() {
+            *cached = connection::load()?;
+        }
+        cached
+            .clone()
+            .ok_or_else(|| "请先打开行记，填写服务地址和共享密钥。".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[derive(Serialize)]
@@ -38,10 +53,7 @@ async fn send(state: &AppState, path: &str, mut body: Value) -> Result<ApiReply,
         return Err("无效的接口路径".into());
     }
     body["protocolVersion"] = json!(4);
-    let connection = state
-        .connection
-        .as_ref()
-        .ok_or("请先打开 FlowBoard，填写服务地址和共享密钥。")?;
+    let connection = load_connection(state).await?;
     let response = state
         .client
         .post(format!(
@@ -143,10 +155,7 @@ async fn run_skill(command: &str) -> Result<Value, String> {
         _ => (),
     }
     let state = app_state()?;
-    let current = state
-        .connection
-        .as_ref()
-        .ok_or("请先打开 FlowBoard，填写服务地址和共享密钥。")?;
+    let current = load_connection(&state).await?;
     if command == "read" {
         return skill_request(&state, "/api/tasks/read", json!({})).await;
     }
@@ -317,7 +326,7 @@ pub fn run() {
                 return runtime
                     .block_on(async {
                         let state = app_state()?;
-                        let connection = state.connection.as_ref().ok_or("请先连接共享看板")?;
+                        let connection = load_connection(&state).await?;
                         let pending = pending_path()?;
                         if pending.exists() {
                             return Err(

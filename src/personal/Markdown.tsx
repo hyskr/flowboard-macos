@@ -69,6 +69,7 @@ export function Markdown({
   return (
     <div className={s.markdown}>
       <ReactMarkdown
+        skipHtml
         remarkPlugins={[remarkGfm]}
         urlTransform={(url) => (/^(?:javascript|vbscript):/i.test(url) ? '' : url)}
         components={{

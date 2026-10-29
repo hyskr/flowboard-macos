@@ -39,3 +39,9 @@
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); transition: none; }
 }
+
+.returnNav { display:none; position:absolute; z-index:2; top:7px; left:8px; color:var(--fg-muted); font-size:14px; }
+.main { position:relative; }
+.main > main { height:100%; }
+
+@media(max-width:860px){.returnNav{display:grid;place-items:center;width:28px;height:28px;top:20px;left:10px;}}

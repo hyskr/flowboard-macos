@@ -6,6 +6,8 @@
 
 `journal.list` 支持 query/from/to，`journal.read` 传 id。先关联本聊天当天已有阶段；同阶段小补充更新对应段落，新功能完成或发布新版本新增稳定阶段 ID。跨天新成果建新阶段；保存发生时间 `occurredAt` 与保存时间分别记录。无法确定历史时间时省略 occurredAt，由本地日期归档，不猜测。
 
+项目名称使用用户能理解的简短业务名称，例如“行记”“Typst 课程报告”“无源物联网读写器”，不要直接把工作目录、Git 仓库 slug 或聊天标题作为项目名。沿用用户已确认的名称；语义不明确时省略，不猜测。用户调整名称时只更新指定记录；历史导入记录不批量改名。
+
 创建：
 ```json
 {"id":"chat-id:release-2","sessionId":"实际聊天ID","title":"2.0 发布与本地记录","body":"# 实际成果标题\n\n完整成果、决策、步骤和验证。","source":"codex","project":"可选来源名称","sourceChat":"codex://threads/实际ID","artifacts":[{"label":"安装包","path":"/实际路径"}]}

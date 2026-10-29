@@ -1,3 +1,5 @@
+import { validChatSource } from '../chatSource';
+import { openSourceChat } from '../desktop';
 import { memo, useState, type CSSProperties } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -87,6 +89,7 @@ export const SortableCard = memo(function SortableCard({ card, className, compac
       {!isDragging && <input className={s.completeToggle} type="checkbox" checked={!!card.completedAt} aria-label={`${card.completedAt ? '重新打开' : '完成'} ${card.title}`} onChange={() => { void useFlowStore.getState().toggleCardComplete(card.id).catch(() => useFlowStore.getState().toast('保存失败，请重试', '⚠')); }} />}
       {!isDragging && <button className={cx(s.options, menu && s.optionsOpen)} onClick={(e) => setMenu(menu ? null : {anchor:e.currentTarget})} aria-label={`Actions for ${card.title}`} aria-haspopup="menu" aria-expanded={!!menu}><Icon name="more" size={15} /></button>}
       {menu && <Menu anchor={menu.anchor} point={menu.point} onClose={() => setMenu(null)}>
+        {validChatSource(card.sourceChat)&&<MenuItem icon="link" onClick={()=>{setMenu(null);void openSourceChat(card.sourceChat!.url).catch(error=>useFlowStore.getState().toast(String(error),'⚠'));}}>打开来源聊天</MenuItem>}
         <MenuItem icon="pencil" onClick={() => { setMenu(null); openModal('card', { card }); }}>Edit card</MenuItem>
         <MenuItem icon="copy" onClick={async () => {
           setMenu(null);

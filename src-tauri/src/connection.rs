@@ -12,6 +12,7 @@ struct Settings {
     updates_url: Option<String>,
 }
 
+#[derive(Clone)]
 pub struct Connection {
     pub worker_url: String,
     pub app_token: String,
@@ -69,10 +70,8 @@ pub fn endpoint(value: &str) -> Result<String, String> {
 #[tauri::command]
 pub fn desktop_info() -> Result<Value, String> {
     let current = settings()?;
-    let (configured, error) = match load() {
-        Ok(value) => (value.is_some(), None),
-        Err(error) => (false, Some(error)),
-    };
+    let configured = current.is_some();
+    let error: Option<String> = None;
     Ok(
         json!({"configured":configured,"workerUrl":current.as_ref().map(|c|&c.worker_url),"updatesUrl":current.as_ref().and_then(|c|c.updates_url.as_ref()),"boardId":"shared","error":error}),
     )

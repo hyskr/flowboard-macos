@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { local, openPath, type Knowledge } from './api';
+import { PageHeader } from './PageHeader';
+import { Icon } from '../components/Icon';
+import bar from '../components/Topbar.module.css';
 import { Markdown } from './Markdown';
 import { cx } from '../utils';
 import ui from '../components/ui.module.css';
@@ -8,10 +11,12 @@ export function KnowledgeView({
   initialQuery = '',
   onJournal,
   onSettings,
+  onToggleSidebar,
 }: {
   initialQuery?: string;
   onJournal: (id: string) => void;
   onSettings: () => void;
+  onToggleSidebar?: () => void;
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [rows, setRows] = useState<Knowledge[]>([]);
@@ -31,13 +36,14 @@ export function KnowledgeView({
     [query, deleted],
   );
   useEffect(() => {
-    void refresh();
+    const searchTimer = setTimeout(() => void refresh(), 200);
     const refreshOnFocus = () => void refresh();
     window.addEventListener('focus', refreshOnFocus);
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') void refresh();
     }, 30000);
     return () => {
+      clearTimeout(searchTimer);
       window.removeEventListener('focus', refreshOnFocus);
       clearInterval(timer);
     };
@@ -102,19 +108,17 @@ export function KnowledgeView({
   };
   return (
     <div className={s.page}>
-      <header className={s.header}>
-        <div>
-          <h1>知识库</h1>
-          <p>找到方法，下次继续使用。</p>
-        </div>
+      <PageHeader title="知识库" onToggleSidebar={onToggleSidebar}>
         <div className={s.actions}>
-          <input
-            className={ui.input}
-            placeholder="搜索用途、主题或正文"
-            aria-label="搜索知识库"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <label className={bar.search}>
+            <Icon name="search" size={16} />
+            <input
+              placeholder="搜索知识库"
+              aria-label="搜索知识库"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
           <button
             className={cx(ui.btn, ui.primary)}
             onClick={() => {
@@ -144,7 +148,7 @@ export function KnowledgeView({
             {deleted ? '返回知识库' : '回收站'}
           </button>
         </div>
-      </header>
+      </PageHeader>
       {message && (
         <div className={s.notice} role="status">
           <span>{message}</span>
@@ -182,189 +186,195 @@ export function KnowledgeView({
           )}
         </aside>
         <article className={s.reader}>
-          {editing ? (
-            <div className={s.editor}>
-              <h1>{base ? '编辑手册' : '新增手册'}</h1>
-              <label>
-                标题
-                <input
-                  className={ui.input}
-                  value={editing.title}
-                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                />
-              </label>
-              <label>
-                用途
-                <input
-                  className={ui.input}
-                  value={editing.usage}
-                  onChange={(e) => setEditing({ ...editing, usage: e.target.value })}
-                />
-              </label>
-              <label>
-                主题关键词（用逗号分隔）
-                <input
-                  className={ui.input}
-                  value={editing.topics.join(', ')}
-                  onChange={(e) =>
-                    setEditing({ ...editing, topics: e.target.value.split(/[,，]/).map((t) => t.trim()) })
-                  }
-                />
-              </label>
-              <label>
-                完整正文 · Markdown
-                <textarea
-                  className={ui.textarea}
-                  value={editing.body}
-                  onChange={(e) => setEditing({ ...editing, body: e.target.value })}
-                />
-              </label>
-              <div className={s.actions}>
-                <button
-                  className={cx(ui.btn, ui.primary)}
-                  disabled={busy || !editing.body?.trim()}
-                  onClick={() => void save()}
-                >
-                  保存
-                </button>
-                <button className={cx(ui.btn, ui.secondary)} disabled={busy} onClick={() => setEditing(null)}>
-                  取消
-                </button>
-              </div>
-            </div>
-          ) : current ? (
-            <>
-              <h1>{current.title}</h1>
-              <div className={s.meta}>
-                {current.usage} · {current.updatedAt.slice(0, 10)} · 版本 {current.version}
-              </div>
-              <div className={s.actions} style={{ marginBottom: 24 }}>
-                {deleted ? (
-                  <button className={cx(ui.btn, ui.secondary)} onClick={() => void remove(true)}>
-                    撤销删除
+          <div className={s.document}>
+            {editing ? (
+              <div className={s.editor}>
+                <h1>{base ? '编辑手册' : '新增手册'}</h1>
+                <label>
+                  标题
+                  <input
+                    className={ui.input}
+                    value={editing.title}
+                    onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                  />
+                </label>
+                <label>
+                  用途
+                  <input
+                    className={ui.input}
+                    value={editing.usage}
+                    onChange={(e) => setEditing({ ...editing, usage: e.target.value })}
+                  />
+                </label>
+                <label>
+                  主题关键词（用逗号分隔）
+                  <input
+                    className={ui.input}
+                    value={editing.topics.join(', ')}
+                    onChange={(e) =>
+                      setEditing({ ...editing, topics: e.target.value.split(/[,，]/).map((t) => t.trim()) })
+                    }
+                  />
+                </label>
+                <label>
+                  完整正文 · Markdown
+                  <textarea
+                    className={ui.textarea}
+                    value={editing.body}
+                    onChange={(e) => setEditing({ ...editing, body: e.target.value })}
+                  />
+                </label>
+                <div className={s.actions}>
+                  <button
+                    className={cx(ui.btn, ui.primary)}
+                    disabled={busy || !editing.body?.trim()}
+                    onClick={() => void save()}
+                  >
+                    保存
                   </button>
-                ) : (
-                  <>
-                    <button
-                      className={cx(ui.btn, ui.secondary)}
-                      onClick={() => {
-                        setBase(current);
-                        setEditing({ ...current });
-                      }}
-                    >
-                      编辑
+                  <button
+                    className={cx(ui.btn, ui.secondary)}
+                    disabled={busy}
+                    onClick={() => setEditing(null)}
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : current ? (
+              <>
+                <h1>{current.title}</h1>
+                <div className={s.meta}>
+                  {current.usage} · {current.updatedAt.slice(0, 10)} · 版本 {current.version}
+                </div>
+                <div className={s.actions} style={{ marginBottom: 24 }}>
+                  {deleted ? (
+                    <button className={cx(ui.btn, ui.secondary)} onClick={() => void remove(true)}>
+                      撤销删除
                     </button>
-                    <button className={cx(ui.btn, ui.ghost)} onClick={() => void remove()}>
-                      删除
-                    </button>
-                  </>
+                  ) : (
+                    <>
+                      <button
+                        className={cx(ui.btn, ui.secondary)}
+                        onClick={() => {
+                          setBase(current);
+                          setEditing({ ...current });
+                        }}
+                      >
+                        编辑
+                      </button>
+                      <button className={cx(ui.btn, ui.ghost)} onClick={() => void remove()}>
+                        删除
+                      </button>
+                    </>
+                  )}
+                  <button
+                    className={cx(ui.btn, ui.ghost)}
+                    onClick={() =>
+                      void navigator.clipboard
+                        .writeText(current.body || '')
+                        .then(() => setMessage('已复制 Markdown'))
+                    }
+                  >
+                    复制 Markdown
+                  </button>
+                  <button
+                    className={cx(ui.btn, ui.ghost)}
+                    onClick={() =>
+                      void local<Knowledge[]>('history', { kind: 'knowledge', id: current.path }).then(
+                        setHistory,
+                      )
+                    }
+                  >
+                    修订记录
+                  </button>
+                  <button
+                    className={cx(ui.btn, ui.ghost)}
+                    onClick={() =>
+                      void local<{ knowledgeDir: string }>('settings.get')
+                        .then((v) => openPath(v.knowledgeDir + '/' + current.path))
+                        .catch((e) => setMessage(String(e)))
+                    }
+                  >
+                    打开原文件
+                  </button>
+                </div>
+                {!!current.headings?.length && (
+                  <nav className={s.toc} aria-label="正文目录">
+                    {current.headings.map((h, i) => (
+                      <a key={i} href={`#${h}`}>
+                        {h}
+                      </a>
+                    ))}
+                  </nav>
                 )}
-                <button
-                  className={cx(ui.btn, ui.ghost)}
-                  onClick={() =>
-                    void navigator.clipboard
-                      .writeText(current.body || '')
-                      .then(() => setMessage('已复制 Markdown'))
-                  }
-                >
-                  复制 Markdown
-                </button>
-                <button
-                  className={cx(ui.btn, ui.ghost)}
-                  onClick={() =>
-                    void local<Knowledge[]>('history', { kind: 'knowledge', id: current.path }).then(
-                      setHistory,
-                    )
-                  }
-                >
-                  修订记录
-                </button>
-                <button
-                  className={cx(ui.btn, ui.ghost)}
-                  onClick={() =>
-                    void local<{ knowledgeDir: string }>('settings.get')
-                      .then((v) => openPath(v.knowledgeDir + '/' + current.path))
-                      .catch((e) => setMessage(String(e)))
-                  }
-                >
-                  打开原文件
+                <Markdown
+                  body={current.body || ''}
+                  path={current.path}
+                  onWiki={(target) => {
+                    const journal = target.match(/\^j([\w-]+)/);
+                    if (journal) {
+                      onJournal(journal[1]);
+                      return;
+                    }
+                    const noAnchor = target.split('#')[0];
+                    const match = rows.find(
+                      (r) =>
+                        r.path === noAnchor ||
+                        r.path === `${noAnchor}.md` ||
+                        r.title === noAnchor ||
+                        r.path.endsWith('/' + noAnchor + '.md'),
+                    );
+                    if (match) void select(match.path);
+                    else {
+                      setQuery(noAnchor.split('/').pop() || noAnchor);
+                      setMessage('已搜索内部链接目标；原 Markdown 链接保持不变');
+                    }
+                  }}
+                />
+                {current.sourceJournalIds?.length ? (
+                  <div className={s.actions} style={{ marginTop: 20 }}>
+                    {current.sourceJournalIds.map((id) => (
+                      <button className={cx(ui.btn, ui.secondary)} key={id} onClick={() => onJournal(id)}>
+                        查看来源记录
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <details className={s.properties}>
+                  <summary>属性与来源</summary>
+                  <p>
+                    主题：{current.topic}
+                    <br />
+                    原项目：{current.project || '未设置'}
+                    <br />
+                    路径：{current.path}
+                  </p>
+                </details>
+                {history && (
+                  <section>
+                    <h2>历史修订</h2>
+                    {history.map((v) => (
+                      <details className={s.properties} key={v.version}>
+                        <summary>
+                          版本 {v.version} · {v.updatedAt}
+                        </summary>
+                        <Markdown body={v.body || ''} />
+                      </details>
+                    ))}
+                  </section>
+                )}
+              </>
+            ) : (
+              <div className={s.empty}>
+                <h2>把方法留在手边。</h2>
+                <p>配置、命令和排障步骤保持完整。按用途和主题查找，选中条目后阅读正文。</p>
+                <button className={cx(ui.btn, ui.secondary)} onClick={onSettings}>
+                  连接现有 References 目录
                 </button>
               </div>
-              {!!current.headings?.length && (
-                <nav className={s.toc} aria-label="正文目录">
-                  {current.headings.map((h, i) => (
-                    <a key={i} href={`#${h}`}>
-                      {h}
-                    </a>
-                  ))}
-                </nav>
-              )}
-              <Markdown
-                body={current.body || ''}
-                path={current.path}
-                onWiki={(target) => {
-                  const journal = target.match(/\^j([\w-]+)/);
-                  if (journal) {
-                    onJournal(journal[1]);
-                    return;
-                  }
-                  const noAnchor = target.split('#')[0];
-                  const match = rows.find(
-                    (r) =>
-                      r.path === noAnchor ||
-                      r.path === `${noAnchor}.md` ||
-                      r.title === noAnchor ||
-                      r.path.endsWith('/' + noAnchor + '.md'),
-                  );
-                  if (match) void select(match.path);
-                  else {
-                    setQuery(noAnchor.split('/').pop() || noAnchor);
-                    setMessage('已搜索内部链接目标；原 Markdown 链接保持不变');
-                  }
-                }}
-              />
-              {current.sourceJournalIds?.length ? (
-                <div className={s.actions} style={{ marginTop: 20 }}>
-                  {current.sourceJournalIds.map((id) => (
-                    <button className={cx(ui.btn, ui.secondary)} key={id} onClick={() => onJournal(id)}>
-                      查看来源记录
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              <details className={s.properties}>
-                <summary>属性与来源</summary>
-                <p>
-                  主题：{current.topic}
-                  <br />
-                  原项目：{current.project || '未设置'}
-                  <br />
-                  路径：{current.path}
-                </p>
-              </details>
-              {history && (
-                <section>
-                  <h2>历史修订</h2>
-                  {history.map((v) => (
-                    <details className={s.properties} key={v.version}>
-                      <summary>
-                        版本 {v.version} · {v.updatedAt}
-                      </summary>
-                      <Markdown body={v.body || ''} />
-                    </details>
-                  ))}
-                </section>
-              )}
-            </>
-          ) : (
-            <div className={s.empty}>
-              <h2>把方法留在手边。</h2>
-              <p>配置、命令和排障步骤保持完整。按用途和主题查找，选中条目后阅读正文。</p>
-              <button className={cx(ui.btn, ui.secondary)} onClick={onSettings}>
-                连接现有 References 目录
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </article>
       </div>
     </div>

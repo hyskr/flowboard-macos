@@ -14,6 +14,7 @@ const PATHS = {
   activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
   more: <><circle cx="5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="19" cy="12" r="1.3" fill="currentColor" /></>,
   x: <path d="M18 6 6 18M6 6l12 12" />,
+  chevronUp: <path d="m6 15 6-6 6 6" />,
   chevronDown: <path d="m6 9 6 6 6-6" />,
   chevronLeft: <path d="m15 18-6-6 6-6" />,
   chevronRight: <path d="m9 18 6-6-6-6" />,

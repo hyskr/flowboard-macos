@@ -28,7 +28,7 @@ export function ConnectionForm({initialUrl='',initialError=''}:{initialUrl?:stri
 }
 
 export function ConnectionSetup({initialUrl='',initialError=''}:{initialUrl?:string;initialError?:string}){
-  return <main style={{height:'100dvh',display:'grid',placeItems:'center',padding:24,overflow:'auto'}}><section style={{width:'100%',maxWidth:420,padding:30,border:'1px solid var(--line)',borderRadius:16,background:'var(--card)',boxShadow:'var(--shadow-md)'}}>
+  return <main style={{height:'100%',display:'grid',placeItems:'center',padding:24,overflow:'auto'}}><section style={{width:'100%',maxWidth:420,padding:30,border:'1px solid var(--line)',borderRadius:16,background:'var(--card)',boxShadow:'var(--shadow-md)'}}>
     <Logo size={36}/><h1 style={{fontSize:25,margin:'20px 0 10px'}}>连接共享看板</h1><p style={{color:'var(--fg-muted)',marginBottom:24}}>填写一次服务地址和共享密钥，与你的协作者管理同一张看板。</p>
     <ConnectionForm initialUrl={initialUrl} initialError={initialError}/>
   </section></main>;

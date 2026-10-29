@@ -58,6 +58,11 @@ pub fn read(s: &Store, r: &Value) -> Result<Value> {
     s.get("records", required(r, "id")?)?
         .ok_or_else(|| "找不到记录".into())
 }
+fn placeholder(body: &str) -> bool {
+    body.contains("保存了可恢复记录")
+        || body.contains("可恢复检查点")
+        || body.contains("会话结束时保存了本 checkpoint 的可恢复记录")
+}
 pub fn list(s: &Store, r: &Value) -> Result<Value> {
     let q = text(r, "query").to_lowercase();
     let hide = s.setting("hidePlaceholders")?.as_bool().unwrap_or(true);
@@ -66,8 +71,16 @@ pub fn list(s: &Store, r: &Value) -> Result<Value> {
         .into_iter()
         .filter(|v| {
             let deleted = !v["deletedAt"].is_null();
+            let project = if text(v, "project").trim().is_empty() {
+                "未分类"
+            } else {
+                text(v, "project").trim()
+            };
             deleted == r["deleted"].as_bool().unwrap_or(false)
-                && (!hide || r["deleted"] == true || v["placeholder"] != true)
+                && (text(r, "project").is_empty() || project == text(r, "project"))
+                && (!hide
+                    || r["deleted"] == true
+                    || (v["placeholder"] != true && !placeholder(text(v, "body"))))
                 && (text(r, "from").is_empty() || text(v, "date") >= text(r, "from"))
                 && (text(r, "to").is_empty() || text(v, "date") <= text(r, "to"))
                 && (q.is_empty()
@@ -266,7 +279,7 @@ pub fn import_file(s: &Store, path: &Path) -> Result<(usize, usize)> {
             .map(str::to_owned)
             .unwrap_or_else(|| format!("import:{}:{}", source, &c[2]));
         let chat=Regex::new(r"(?:codex://threads/[a-zA-Z0-9-]+|https://chatgpt.com/(?:c|share)/[a-zA-Z0-9-]+|https://claude.ai/chat/[a-zA-Z0-9-]+)")?.find(content).map(|m|m.as_str().to_string());
-        let placeholder = content.contains("保存了可恢复记录") || content.contains("可恢复检查点");
+        let placeholder = placeholder(content);
         let out = save(
             s,
             &json!({"id":key,"title":&c[3],"body":content,"date":date,"occurredAt":occurred,"sessionId":session,"source":source,"sourceChat":chat,"importPath":path.to_string_lossy(),"project":&c[2],"placeholder":placeholder}),
