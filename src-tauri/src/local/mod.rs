@@ -49,7 +49,9 @@ impl Store {
         let sql=match table{"records"=>"INSERT OR REPLACE INTO records VALUES(?,?)","knowledge"=>"INSERT OR REPLACE INTO knowledge VALUES(?,?)","sessions"=>"INSERT OR REPLACE INTO sessions VALUES(?,?)",_=>return Err("无效数据类型".into())};
         self.db.execute(sql,params![key,value.to_string()])?;Ok(())
     }
+    pub fn revision_key(&self,kind:&str,key:&str)->Result<String>{Ok(if kind=="knowledge"{format!("{}::{key}",knowledge::root(self)?.to_string_lossy())}else{key.to_string()})}
     pub fn revision(&self,kind:&str,key:&str,v:&Value)->Result<()> {
+        let key=self.revision_key(kind,key)?;
         self.db.execute("INSERT OR IGNORE INTO revisions VALUES(?,?,?,?,?)",params![kind,key,v["version"].as_i64().unwrap_or(1),v.to_string(),now()])?;Ok(())
     }
     pub fn conflict(&self,kind:&str,target:&str,proposed:&Value,current:&Value)->Result<Value>{
@@ -99,7 +101,7 @@ impl Store {
     }
     fn history(&self,r:&Value)->Result<Value>{
         let mut stmt=self.db.prepare("SELECT data FROM revisions WHERE kind=? AND id=? ORDER BY version DESC")?;
-        let rows=stmt.query_map(params![required(r,"kind")?,required(r,"id")?],|row|row.get::<_,String>(0))?;
+        let rows=stmt.query_map(params![required(r,"kind")?,self.revision_key(required(r,"kind")?,required(r,"id")?)?],|row|row.get::<_,String>(0))?;
         Ok(json!(rows.map(|v|Ok(serde_json::from_str::<Value>(&v?)?)).collect::<Result<Vec<_>>>()?))
     }
     fn conflicts(&self)->Result<Value>{let mut stmt=self.db.prepare("SELECT data FROM conflicts ORDER BY rowid DESC")?;let rows=stmt.query_map([],|row|row.get::<_,String>(0))?;Ok(json!(rows.map(|v|Ok(serde_json::from_str::<Value>(&v?)?)).collect::<Result<Vec<_>>>()?))}
@@ -107,8 +109,9 @@ impl Store {
         let conflict:String=self.db.query_row("SELECT data FROM conflicts WHERE id=?",[required(r,"id")?],|row|row.get(0))?;let c:Value=serde_json::from_str(&conflict)?;
         if r["choice"]=="local" {
             let mut proposed=c["proposed"].clone();
-            if c["kind"]=="journal" {let current=self.get("records",text(&c,"target"))?.ok_or("记录不存在")?;if !current["deletedAt"].is_null(){return Err("记录已删除，请先在回收站恢复".into());}proposed["baseVersion"]=current["version"].clone();for (key,value) in current.as_object().unwrap(){if proposed.get(key).is_some(){proposed["baseValues"][key]=value.clone();}}if let Some(patches)=proposed["patches"].as_array_mut(){for patch in patches{patch["baseValue"]=json!(journal::section(text(&current,"body"),text(patch,"heading")));}}journal::save(self,&proposed)?;}
-            else {let current=knowledge::read(self,&json!({"path":c["target"]}))?;proposed["baseBody"]=current["body"].clone();proposed["baseVersion"]=current["version"].clone();knowledge::save(self,&proposed)?;}
+            if c["kind"]=="knowledge" && c["current"]["directory"].as_str()!=Some(knowledge::root(self)?.to_string_lossy().as_ref()){return Err("此修改属于其他知识库，请先切回原目录".into());}
+            if c["kind"]=="journal" {let current=self.get("records",text(&c,"target"))?.ok_or("记录不存在")?;if !current["deletedAt"].is_null(){return Err("记录已删除，请先在回收站恢复".into());}proposed["baseVersion"]=current["version"].clone();for (key,value) in current.as_object().unwrap(){if proposed.get(key).is_some(){proposed["baseValues"][key]=value.clone();}}if let Some(patches)=proposed["patches"].as_array_mut(){for patch in patches{patch["baseValue"]=json!(journal::section(text(&current,"body"),text(patch,"heading")));}}if proposed["op"]=="journal.delete"{journal::delete(self,&proposed,false)?;}else if proposed["op"]=="journal.restore"{journal::delete(self,&proposed,true)?;}else{journal::save(self,&proposed)?;}}
+            else {let current=knowledge::read(self,&json!({"path":c["target"]}))?;proposed["baseBody"]=current["body"].clone();proposed["baseVersion"]=current["version"].clone();if proposed["op"]=="knowledge.delete"{knowledge::delete(self,&proposed,false)?;}else if proposed["op"]=="knowledge.restore"{knowledge::delete(self,&proposed,true)?;}else{knowledge::save(self,&proposed)?;}}
         }else if r["choice"]!="cloud" {return Err("请选择 local 或 cloud（当前内容）".into());}
         self.db.execute("DELETE FROM conflicts WHERE id=?",[text(&c,"id")])?;Ok(json!({"status":"resolved"}))
     }

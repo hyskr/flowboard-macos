@@ -142,7 +142,21 @@ pub fn run() {
         let result=(||->local::Result<Value>{
             let mut request:Value=if input.trim().is_empty(){json!({})}else{serde_json::from_str(&input)?};
             if operation=="hook"{let store=local::open()?;store.db.execute_batch("BEGIN IMMEDIATE")?;let result=local::hooks::handle(&store,&request)?;store.db.execute_batch("COMMIT")?;return Ok(result);}
-            if operation=="tasks.read" || operation=="tasks.batch" {let runtime=tokio::runtime::Runtime::new()?;return runtime.block_on(async{let state=app_state()?;skill_request(&state,if operation=="tasks.read"{"/api/tasks/read"}else{"/api/tasks/batch"},request).await}).map_err(Into::into);}
+            if ["tasks.read","tasks.batch","tasks.pending","tasks.retry","tasks.discard"].contains(&operation) {
+                let runtime=tokio::runtime::Runtime::new()?;
+                if operation!="tasks.batch"{return runtime.block_on(run_skill(operation.trim_start_matches("tasks."))).map_err(Into::into);}
+                return runtime.block_on(async{
+                    let state=app_state()?;let connection=state.connection.as_ref().ok_or("请先连接共享看板")?;
+                    let pending=pending_path()?;if pending.exists(){return Err("存在待同步批次，请先 tasks.pending 查看并 retry 或 discard。".into());}
+                    let actions=request["actions"].as_array_mut().ok_or("需要 actions 数组")?;if actions.is_empty()||actions.len()>20{return Err("每批需要 1–20 项操作".into());}
+                    for action in actions {
+                        if action.get("requestId").is_none(){action["requestId"]=json!(local::id());}
+                        if action["action"]=="upsert_task" && action["args"].get("cardId").is_none() && action["args"].get("sourceChat").is_none(){if let Ok(thread)=std::env::var("CODEX_THREAD_ID"){let url=format!("codex://threads/{thread}");if valid_chat_url(&url){action["args"]["sourceChat"]=json!({"url":url});}}}
+                    }
+                    request["server"]=json!(connection.worker_url);write_private(&pending,&serde_json::to_vec(&request).map_err(|e|e.to_string())?)?;
+                    let result=skill_request(&state,"/api/tasks/batch",request).await?;if result["ok"]==true{fs::remove_file(pending).map_err(|e|e.to_string())?;}Ok::<_,String>(result)
+                }).map_err(Into::into);
+            }
             request["op"]=json!(operation);local::open()?.execute(request)
         })();
         match result{Ok(value)=>println!("{}",value),Err(error)=>{eprintln!("{}",json!({"status":"failed","error":error.to_string()}));std::process::exit(1);}}return;

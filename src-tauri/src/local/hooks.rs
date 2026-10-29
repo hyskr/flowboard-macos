@@ -32,7 +32,7 @@ fn signal(r:&Value)->Option<String>{
     if tool.contains("exec")||tool.contains("Bash") {
         let command=input["cmd"].as_str().or(input["command"].as_str()).unwrap_or(&raw);
         let action=regex::Regex::new(r"(?m)(git (commit|push|merge)|npm run (build|test)|cargo (test|build)|wrangler deploy|gh release|python\d?\s+-\s*<<|\b(sed -i|cat\s*>|tee\s+))").ok()?;
-        if action.is_match(command){let success=r["tool_response"]["exit_code"].as_i64();return Some(format!("{}{}",command.lines().next().unwrap_or("").chars().take(150).collect::<String>(),success.map(|s|format!("（退出 {s}）")).unwrap_or_default()));}
+        if action.is_match(command){let success=r["tool_response"]["exit_code"].as_i64();return Some(format!("{}{}",action.find(command).map(|m|m.as_str()).unwrap_or("开发操作"),success.map(|s|format!("（退出 {s}）")).unwrap_or_default()));}
     }
     None
 }
@@ -54,6 +54,7 @@ pub fn handle(s:&Store,r:&Value)->Result<Value>{
     }
     if state["pending"].is_null(){s.put("sessions",&key,&state)?;return Ok(json!({}));}
     let resume=event=="SessionStart"||event=="UserPromptSubmit";
+    if !resume && event!="Stop" && event!="PreCompact" {s.put("sessions",&key,&state)?;return Ok(json!({}));}
     if state["pending"]["notified"]==true && !resume {return Ok(json!({}));}
     if resume && state["pending"]["resumed"]==true{return Ok(json!({}));}
     let pending=state["pending"].clone();

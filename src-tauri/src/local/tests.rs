@@ -42,5 +42,5 @@ fn checkpoint_is_incremental_once_and_keeps_failed_body(){
 fn import_is_repeatable_and_keeps_source(){
  let s=store();let source=s.root.join("legacy");fs::create_dir_all(&source).unwrap();let body="---\ndate: 2026-10-15\n---\n# 日记\n\n## 18:43 · 数据科学与工程 — 完成模板库 ^jstable-id\n\n<!-- dev-notes:stable-id -->\n\n完整正文与代码。\n";let path=source.join("2026-10-15.md");fs::write(&path,body).unwrap();
  assert_eq!(journal::import_file(&s,&path).unwrap(),(1,0));assert_eq!(journal::import_file(&s,&path).unwrap(),(0,1));assert_eq!(fs::read_to_string(path).unwrap(),body);
- let rows=s.execute(json!({"op":"journal.list"})).unwrap();assert_eq!(rows[0]["id"],"legacy:stable-id");assert_eq!(rows[0]["date"],"2026-10-15");fs::remove_dir_all(s.root.clone()).unwrap();
+ let rows=s.execute(json!({"op":"journal.list"})).unwrap();assert_eq!(rows[0]["id"],"stable-id");assert_eq!(rows[0]["date"],"2026-10-15");fs::remove_dir_all(s.root.clone()).unwrap();
 }

@@ -49,6 +49,7 @@ pub fn save(s:&Store,r:&Value)->Result<Value>{
         }
     }
     let saved=now();
+    if current.is_none() && text(&value,"sessionId")=="manual" {if let Ok(thread)=std::env::var("CODEX_THREAD_ID"){value["sessionId"]=json!(thread);value["source"]=json!("codex");value["sourceChat"]=json!(format!("codex://threads/{thread}"));}}
     if current.is_none(){
         let occurred=r["occurredAt"].as_str().unwrap_or(&saved);
         let when=DateTime::parse_from_rfc3339(occurred).map_err(|_|"发生时间需要带时区的 ISO 时间")?;
@@ -75,11 +76,12 @@ pub fn delete(s:&Store,r:&Value,restore:bool)->Result<Value>{
 pub fn import_file(s:&Store,path:&Path)->Result<(usize,usize)>{
     let body=fs::read_to_string(path)?;let header=Regex::new(r"(?m)^#{2,3} (\d{2}:\d{2}) · (.*?) — (.*?) \^j([\w-]+)\s*$")?;
     let captures=header.captures_iter(&body).collect::<Vec<_>>();let mut imported=0;let mut skipped=0;
-    let date_pattern=Regex::new(r"\d{4}-\d{2}-\d{2}")?;
+    let date_pattern=Regex::new(r"(?m)^(?:date:\s*|##\s+)(\d{4}-\d{2}-\d{2})")?;
     for (i,c) in captures.iter().enumerate(){
-        let key=format!("legacy:{}",&c[4]);if s.get("records",&key)?.is_some(){skipped+=1;continue;}
+        let key=c[4].to_string();if s.get("records",&key)?.is_some(){skipped+=1;continue;}
         let before=&body[..c.get(0).unwrap().start()];
-        let date=date_pattern.find_iter(before).last().map(|m|m.as_str()).or_else(||path.file_stem().and_then(|s|s.to_str()).filter(|s|s.len()==10)).unwrap_or("");
+        let last_date=date_pattern.captures_iter(before).last().map(|c|c[1].to_string());
+        let date=path.file_stem().and_then(|s|s.to_str()).filter(|s|s.len()==10).or(last_date.as_deref()).unwrap_or("");
         if NaiveDate::parse_from_str(date,"%Y-%m-%d").is_err(){skipped+=1;continue;}
         let end=captures.get(i+1).map(|c|c.get(0).unwrap().start()).unwrap_or(body.len());
         let content=body[c.get(0).unwrap().end()..end].trim();

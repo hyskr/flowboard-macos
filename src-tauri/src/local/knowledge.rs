@@ -22,7 +22,7 @@ pub fn refresh(s:&Store)->Result<Value>{
         let body=fs::read_to_string(entry.path())?;
         let current=s.get("knowledge",&path)?;
         if current.as_ref().is_some_and(|c|text(c,"body")==body&&c["deletedAt"].is_null()){continue;}
-        let mut value=meta(&body,&path);value["path"]=json!(path);value["body"]=json!(body);value["version"]=json!(current.as_ref().and_then(|c|c["version"].as_i64()).unwrap_or(0)+1);value["deletedAt"]=Value::Null;
+        let mut value=meta(&body,&path);value["directory"]=json!(root.to_string_lossy());value["path"]=json!(path);value["body"]=json!(body);value["version"]=json!(current.as_ref().and_then(|c|c["version"].as_i64()).unwrap_or(0)+1);value["deletedAt"]=Value::Null;
         value["updatedAt"]=json!(chrono::DateTime::<Utc>::from(entry.metadata()?.modified()?).to_rfc3339());s.put("knowledge",&path,&value)?;s.revision("knowledge",&path,&value)?;changed+=1;
     }
     for mut value in s.all("knowledge")?{let key=text(&value,"path").to_string();if !present.contains(&key)&&value["deletedAt"].is_null(){value["deletedAt"]=json!(now());value["version"]=json!(value["version"].as_i64().unwrap_or(0)+1);s.put("knowledge",&key,&value)?;s.revision("knowledge",&key,&value)?;}}
@@ -67,7 +67,7 @@ pub fn save(s:&Store,r:&Value)->Result<Value>{
     for key in ["topic","usage","topics","sourceJournalIds"] {if let Some(v)=value.get(key){front[key]=v.clone();}}
     let complete=format!("---\n{}---\n\n{}",serde_yaml::to_string(&front)?,content);
     if complete!=original{atomic(&full,complete.as_bytes())?;value["body"]=json!(complete);s.put("knowledge",&path,&value)?;}
-    s.db.execute("INSERT OR REPLACE INTO revisions VALUES('knowledge',?,?,?,?)",params![path,value["version"].as_i64().unwrap_or(1),value.to_string(),now()])?;
+    s.db.execute("INSERT OR REPLACE INTO revisions VALUES('knowledge',?,?,?,?)",params![s.revision_key("knowledge",&path)?,value["version"].as_i64().unwrap_or(1),value.to_string(),now()])?;
     Ok(json!({"status":"saved","record":value}))
 }
 pub fn delete(s:&Store,r:&Value,restore:bool)->Result<Value>{
