@@ -79,7 +79,10 @@ pub fn delete(s:&Store,r:&Value,restore:bool)->Result<Value>{
     refresh(s)?;Ok(json!({"status":if restore{"restored"}else{"deleted"}}))
 }
 pub fn asset(s:&Store,r:&Value)->Result<Value>{
-    let path=resolve(s,required(r,"path")?)?;let extension=path.extension().and_then(|p|p.to_str()).unwrap_or("");
+    let root=root(s)?;let raw=Path::new(required(r,"path")?);if raw.is_absolute(){return Err("图片路径应相对于知识库".into());}
+    let path=root.join(raw).canonicalize()?;let allowed=root.ancestors().find(|p|p.join(".obsidian").is_dir()).unwrap_or(&root);
+    if !path.starts_with(allowed.canonicalize()?){return Err("图片不在知识库或 Obsidian 库内".into());}
+    let extension=path.extension().and_then(|p|p.to_str()).unwrap_or("");
     let mime=match extension{"png"=>"image/png","jpg"|"jpeg"=>"image/jpeg","gif"=>"image/gif","webp"=>"image/webp","svg"=>"image/svg+xml",_=>return Err("不支持的图片格式".into())};
     use base64::Engine;Ok(json!(format!("data:{mime};base64,{}",base64::engine::general_purpose::STANDARD.encode(fs::read(path)?))))
 }

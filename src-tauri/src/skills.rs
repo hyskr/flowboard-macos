@@ -36,7 +36,7 @@ pub fn integration_status(target:String)->Result<Value,String>{
 }
 #[tauri::command]
 pub fn takeover(target:String)->Result<Value,String>{
- let base=home(&target)?;let command=hook_command(&target)?;let events=["PostToolUse","Stop","PreCompact","SessionStart","UserPromptSubmit"];
+ let base=home(&target)?;let command=hook_command(&target)?;let events=["PostToolUse","Stop","PreCompact","SessionStart"];
  if target=="codex" {
   let path=base.join("config.toml");backup(&path)?;let mut config=fs::read_to_string(&path).unwrap_or_default().parse::<toml_edit::DocumentMut>().map_err(|e|e.to_string())?;
   if let Some(plugins)=config["plugins"].as_table_mut(){for (name,plugin) in plugins.iter_mut(){if name.starts_with("ai-development-journal@"){plugin["enabled"]=toml_edit::value(false);}}}

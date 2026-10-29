@@ -54,13 +54,12 @@ pub fn handle(s:&Store,r:&Value)->Result<Value>{
         state["pending"]=json!({"id":id(),"since":state["lastCheck"],"afterTurn":state["afterTurn"],"through":state["sequence"],"throughTurn":state["lastTurn"],"hints":state["hints"],"notified":false});
     }
     if state["pending"].is_null(){s.put("sessions",&key,&state)?;return Ok(json!({}));}
-    let resume=event=="SessionStart"||event=="UserPromptSubmit";
+    let resume=event=="SessionStart";
     if !resume && event!="Stop" && event!="PreCompact" {s.put("sessions",&key,&state)?;return Ok(json!({}));}
     if state["pending"]["notified"]==true && !resume {return Ok(json!({}));}
-    if resume && state["pending"]["resumed"]==true{return Ok(json!({}));}
     let pending=state["pending"].clone();
     let prompt=format!("行记检查点：仅处理此范围内新增且有实质价值的成果、研究、排障或决定。利用当前对话，不重读整段工具历史。读取 xingji/references/journal.md 后，用 checkpoint.save 保存已有正文或 checkpoint.ack 明确跳过；失败时通过 checkpoint.status 取回正文重试，不重新总结。会话 {}，检查点 {}。范围与线索：{}",key,text(&pending,"id"),pending);
-    state["pending"]["notified"]=json!(true);if resume{state["pending"]["resumed"]=json!(true);}s.put("sessions",&key,&state)?;
+    state["pending"]["notified"]=json!(true);s.put("sessions",&key,&state)?;
     if event=="Stop" && r["stop_hook_active"]!=true {Ok(json!({"decision":"block","reason":prompt}))}
     else if event=="PreCompact" {Ok(json!({"continue":false,"stopReason":prompt}))}
     else if resume {Ok(json!({"hookSpecificOutput":{"hookEventName":event,"additionalContext":prompt}}))}
