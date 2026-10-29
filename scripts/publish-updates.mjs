@@ -24,7 +24,7 @@ if (mode === 'hot') {
   const archives = (await readdir(directory)).filter(name => name.endsWith('.app.tar.gz'));
   if (archives.length !== 1) throw new Error('Expected one universal macOS updater archive.');
   const archive = archives[0];
-  const key = `v${config.version}/${archive}`;
+  const key = `v${config.version}/Xingji.app.tar.gz`;
   await uploadFile(key, join(directory, archive));
   const signature = (await readFile(join(directory, `${archive}.sig`), 'utf8')).trim();
   const platform = { signature, url: `${origin}/updates/${key}` };

@@ -11,8 +11,6 @@ concurrency:
 jobs:
   release:
     runs-on: macos-latest
-    env:
-      LEGACY_UPDATE_CONNECTION: ${{ secrets.FLOWBOARD_CONNECTION_JSON }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,9 +43,3 @@ jobs:
           releaseDraft: false
           uploadUpdaterJson: true
           args: --target universal-apple-darwin --bundles app,dmg
-      - if: env.LEGACY_UPDATE_CONNECTION != ''
-        run: node scripts/prepare-ci.mjs
-        env:
-          FLOWBOARD_CONNECTION_JSON: ${{ secrets.FLOWBOARD_CONNECTION_JSON }}
-      - if: env.LEGACY_UPDATE_CONNECTION != ''
-        run: node scripts/publish-updates.mjs native
