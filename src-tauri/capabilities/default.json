@@ -10,7 +10,6 @@
     "notification:default",
     "updater:default",
     "window-state:default",
-    "process:default",
-    "hot-update:default"
+    "process:default"
   ]
 }

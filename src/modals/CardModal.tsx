@@ -158,7 +158,7 @@ export function CardModal({ card, defaultColId }: { card?: Card; defaultColId?: 
             <section className={s.checklist} aria-label="Checklist">
               <div className={s.checkHead}><h3><Icon name="checklist" size={16} /> Checklist</h3><span>{done}/{tasks.length}</span></div>
               {!!tasks.length && <progress value={done} max={tasks.length} aria-label="Checklist completion" />}
-              {tasks.map((t) => <div className={cx(s.task, t.done && s.taskDone)} key={t.id}>
+              {[...tasks].reverse().map((t) => <div className={cx(s.task, t.done && s.taskDone)} key={t.id}>
                 <input type="checkbox" checked={t.done} aria-label={`Complete ${t.title}`} onChange={(e) => setChecklist(tasks.map((item) => item.id === t.id ? { ...item, done: e.target.checked } : item))} />
                 <input className={s.taskTitle} value={t.title} aria-label="Checklist item" onChange={(e) => setChecklist(tasks.map((item) => item.id === t.id ? { ...item, title: e.target.value } : item))} onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} />
                 <button type="button" className={cx(ui.iconBtn, ui.small)} onClick={() => setChecklist(tasks.filter((item) => item.id !== t.id))} aria-label={`Remove ${t.title}`}><Icon name="x" size={13} /></button>

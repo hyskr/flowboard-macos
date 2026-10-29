@@ -1,0 +1,4 @@
+#!/bin/sh
+APP='/Applications/行记.app/Contents/MacOS/flowboard'
+if [ ! -x "$APP" ]; then APP='/Applications/FlowBoard.app/Contents/MacOS/flowboard'; fi
+exec "$APP" --xingji "$@"

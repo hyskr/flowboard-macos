@@ -1,4 +1,5 @@
 mod skills;
+mod local;
 mod connection;
 use serde::Serialize;
 use tauri::Manager;
@@ -135,6 +136,17 @@ mod source_tests {
 
 pub fn run() {
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).is_some_and(|a| a == "--xingji") {
+        let mut input=String::new();io::stdin().read_to_string(&mut input).expect("Cannot read command input");
+        let operation=args.get(2).map(String::as_str).unwrap_or("settings.get");
+        let result=(||->local::Result<Value>{
+            let mut request:Value=if input.trim().is_empty(){json!({})}else{serde_json::from_str(&input)?};
+            if operation=="hook"{let store=local::open()?;store.db.execute_batch("BEGIN IMMEDIATE")?;let result=local::hooks::handle(&store,&request)?;store.db.execute_batch("COMMIT")?;return Ok(result);}
+            if operation=="tasks.read" || operation=="tasks.batch" {let runtime=tokio::runtime::Runtime::new()?;return runtime.block_on(async{let state=app_state()?;skill_request(&state,if operation=="tasks.read"{"/api/tasks/read"}else{"/api/tasks/batch"},request).await}).map_err(Into::into);}
+            request["op"]=json!(operation);local::open()?.execute(request)
+        })();
+        match result{Ok(value)=>println!("{}",value),Err(error)=>{eprintln!("{}",json!({"status":"failed","error":error.to_string()}));std::process::exit(1);}}return;
+    }
     if args.get(1).is_some_and(|a| a == "--skill") {
         let runtime = tokio::runtime::Runtime::new().expect("Cannot start runtime");
         match runtime.block_on(run_skill(args.get(2).map(String::as_str).unwrap_or("status"))) {
@@ -145,15 +157,8 @@ pub fn run() {
     }
     let state = app_state().expect("Cannot load application connection");
     let mut context = tauri::generate_context!();
-    let (hot_update,updater)=if let Some((origin,token))=state.connection.as_ref().and_then(|connection|connection.updates_url.as_deref().map(|url|(url.trim_end_matches('/'),connection.app_token.as_str()))) {
-        context.config_mut().plugins.0.get_mut("updater").expect("Missing updater config")["endpoints"] = json!([format!("{origin}/updates/latest.json")]);
-        context.config_mut().plugins.0.get_mut("hot-update").expect("Missing hot update config")["manifestUrl"] = json!(format!("{origin}/updates/{token}/manifest.json"));
-        (Some(tauri_plugin_hot_update::install(&mut context)),Some(tauri_plugin_updater::Builder::new().header("X-FlowBoard-Access",token).expect("Invalid application access header").build()))
-    } else {
-        context.config_mut().plugins.0.get_mut("hot-update").expect("Missing hot update config")["enabled"]=json!(false);
-        (None,None)
-    };
-    let mut builder=tauri::Builder::default()
+    context.config_mut().plugins.0.get_mut("updater").expect("Missing updater config")["endpoints"]=json!(["https://github.com/hyskr/flowboard-macos/releases/latest/download/latest.json"]);
+    let builder=tauri::Builder::default()
 
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") {
@@ -165,9 +170,8 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(state);
-    if let Some(hot_update)=hot_update {builder=builder.plugin(tauri_plugin_hot_update::init(hot_update));}
-    if let Some(updater)=updater {builder=builder.plugin(updater);}
-    builder.invoke_handler(tauri::generate_handler![connection::desktop_info, connection::save_connection, api_request, skills::install_skill, skills::skill_status, open_source_chat, export_backup])
+    builder.invoke_handler(tauri::generate_handler![connection::desktop_info, connection::save_connection, api_request, local::local_request, local::choose_directory, local::open_path, skills::integration_status, skills::takeover, skills::install_skill, skills::skill_status, open_source_chat, export_backup])
         .run(context).expect("Cannot start FlowBoard");
 }

@@ -43,7 +43,7 @@ export function Sidebar({ open, hidden, onClose }: { open: boolean; hidden: bool
       <aside id="workspace-sidebar" ref={trapRef} tabIndex={-1} className={cx(s.sidebar, hidden && s.hidden, open && s.open)} aria-label="Navigation" role={open ? 'dialog' : undefined} aria-modal={open || undefined} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
         <div className={s.brand}>
           <Logo />
-          <span className={s.brandName}>FlowBoard</span>
+          <span className={s.brandName}>行记</span>
           <button className={cx(ui.iconBtn, s.close)} onClick={onClose} aria-label="Close navigation">
             <Icon name="x" />
           </button>

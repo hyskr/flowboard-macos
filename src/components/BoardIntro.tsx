@@ -31,7 +31,7 @@ export function BoardIntro() {
     } catch (e) { st.toast((e as Error).message, '⚠'); }
   };
   return <section className={s.intro} aria-label="看板概览">
-    <div><div className={s.eyebrow}>FLOWBOARD / 共事</div><h2>让确定的事，向前一步。</h2><p>{current.length - completed} 件进行中 <span>·</span> {completed} 件已完成 <span>·</span> {workerStatus ? '已连接云端' : '正在本地保存'}</p></div>
+    <div><div className={s.eyebrow}>行记 / 共享看板</div><h2>让确定的事，向前一步。</h2><p>{current.length - completed} 件进行中 <span>·</span> {completed} 件已完成 <span>·</span> {workerStatus ? '已连接云端' : '正在本地保存'}</p></div>
     <div className={s.actions}>
       <button className={cx(ui.btn, ui.secondary)} onClick={() => st.openModal('connect', {})}><Icon name="sparkle" size={15} /> {isDesktop ? '安装 skill' : '连接 GPT'}</button>
       <button className={cx(ui.btn, ui.secondary)} onClick={share}><Icon name="users" size={15} /> {isDesktop ? '立即同步' : '邀请协作'}</button>

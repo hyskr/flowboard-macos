@@ -65,9 +65,7 @@ export function Logo({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
       <rect width="32" height="32" rx="9" fill="var(--accent)" />
-      <rect x="8" y="8" width="4" height="16" rx="2" fill="var(--accent-fg)" />
-      <rect x="14" y="8" width="4" height="10" rx="2" fill="var(--accent-fg)" opacity="0.75" />
-      <rect x="20" y="8" width="4" height="13" rx="2" fill="var(--accent-fg)" opacity="0.5" />
+      <path d="M8 10h9M8 16h6M8 22h9M22 9v14m-3-4 3 4 3-4" fill="none" stroke="var(--accent-fg)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "行记"
+  short_description: "共享事情，回顾工作，复用个人方法"
+  default_prompt: "使用 $xingji 按需查找知识、更新任务并记录当前成果。"

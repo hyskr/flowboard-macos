@@ -1,7 +1,7 @@
 {
   "name": "flowboard-macos",
   "private": true,
-  "version": "1.3.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -30,6 +30,8 @@
     "@tauri-apps/plugin-window-state": "^2.5.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "tauri-plugin-hot-update-api": "^0.1.0",
     "zustand": "^5.0.13"
   },

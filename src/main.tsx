@@ -4,6 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from './components/Shell'
 import { App } from './App'
+import { DesktopApp } from './personal/DesktopApp'
 import { useFlowStore } from './store/useFlowStore'
 
 if (!isDesktop && import.meta.env.PROD && 'serviceWorker' in navigator) {
@@ -33,7 +34,7 @@ if (!isDesktop && import.meta.env.PROD && 'serviceWorker' in navigator) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      {isDesktop ? <DesktopApp /> : <App />}
     </ErrorBoundary>
   </StrictMode>,
 )

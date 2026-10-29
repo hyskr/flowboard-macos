@@ -1,4 +1,3 @@
-import { notifyAppReady } from 'tauri-plugin-hot-update-api';
 import { isDesktop, desktopInfo, type DesktopInfo } from './desktop';
 import { ConnectionSetup } from './components/ConnectionSetup';
 import { useEffect, useState } from 'react';
@@ -70,9 +69,6 @@ export function App() {
     return () => {window.removeEventListener('popstate',onPopState);window.removeEventListener('focus',refresh);window.removeEventListener('online',refresh);document.removeEventListener('visibilitychange',refresh);};
   }, []);
 
-  useEffect(() => {
-    if (isDesktop && !isLoading && !error) void notifyAppReady().catch(() => {});
-  }, [isLoading, error]);
 
   if(isDesktop && !connectionReady && connection) return <ConnectionSetup initialUrl={connection.workerUrl || ''} initialError={connection.error || ''}/>;
 

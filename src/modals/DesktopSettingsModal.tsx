@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useFlowStore } from '../store/useFlowStore';
 import { Modal } from './Modal';
 import { cx } from '../utils';
-import { desktopInfo, checkSkill, installSkill, type SkillStatus } from '../desktop';
+import { checkSkill, installSkill, type SkillStatus } from '../desktop';
 import ui from '../components/ui.module.css';
 import { DesktopUpdates } from '../components/DesktopUpdates';
 
@@ -10,8 +10,6 @@ type Target = 'codex' | 'claude';
 const targets: {id:Target;name:string}[] = [{id:'codex',name:'Codex'},{id:'claude',name:'Claude Code'}];
 
 export function DesktopSettingsModal() {
-  const [updatesEnabled,setUpdatesEnabled]=useState(false);
-  useEffect(()=>{void desktopInfo().then(info=>setUpdatesEnabled(!!info.updatesUrl));},[]);
   const workerUrl=useFlowStore(st=>st.workerUrl);
   const syncError=useFlowStore(st=>st.syncError);
   const connected = useFlowStore(st => st.workerStatus);
@@ -65,7 +63,7 @@ export function DesktopSettingsModal() {
       })}
       {message&&<p role="status" style={{marginTop:12,color:'var(--fg-muted)'}}>{message}</p>}
     </section>
-    <DesktopUpdates enabled={updatesEnabled} />
+    <DesktopUpdates />
     <section><h3 style={{marginBottom:12}}>备份</h3><div style={{display:'flex',gap:8}}><button className={cx(ui.btn,ui.secondary)} onClick={exportData}>导出看板</button><label className={cx(ui.btn,ui.secondary)}>导入备份<input type="file" accept=".json" hidden onChange={async e=>{const file=e.target.files?.[0];if(!file)return;try{await importData(await file.text());}catch{toast('无法读取备份文件','⚠');}e.target.value='';}}/></label></div></section>
   </Modal>;
 }

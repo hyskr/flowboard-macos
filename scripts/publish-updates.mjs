@@ -28,7 +28,7 @@ if (mode === 'hot') {
   await uploadFile(key, join(directory, archive));
   const signature = (await readFile(join(directory, `${archive}.sig`), 'utf8')).trim();
   const platform = { signature, url: `${origin}/updates/${key}` };
-  const manifest = JSON.stringify({ version: config.version, notes: `FlowBoard ${config.version}：首次连接配置共享密钥与卡片右键菜单。`, pub_date: new Date().toISOString(), platforms: { 'darwin-aarch64': platform, 'darwin-x86_64': platform } });
+  const manifest = JSON.stringify({ version: config.version, notes: `FlowBoard ${config.version}：行记：本地开发记录、知识库、统一 Skill 与低频 Hook。`, pub_date: new Date().toISOString(), platforms: { 'darwin-aarch64': platform, 'darwin-x86_64': platform } });
   await upload('latest.json', manifest, Buffer.byteLength(manifest));
   console.log(`Signed macOS update ${config.version} published to private storage (${basename(archive)}).`);
 }
