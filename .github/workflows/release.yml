@@ -39,7 +39,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 行记 v__VERSION__
-          releaseBody: 共享看板、个人开发记录、Markdown 知识库与统一行记 Skill；本地离线保存与低频检查点。Apple Silicon / Intel 通用应用。
+          releaseBody: 三列开发记录、项目分类与历史、日历筛选、透明浮动目录、方向键切换和统一看板样式。Apple Silicon / Intel 通用应用。
           releaseDraft: false
           uploadUpdaterJson: true
           args: --target universal-apple-darwin --bundles app,dmg
