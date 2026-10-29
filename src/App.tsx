@@ -1,5 +1,6 @@
 import { notifyAppReady } from 'tauri-plugin-hot-update-api';
-import { isDesktop } from './desktop';
+import { isDesktop, desktopInfo, type DesktopInfo } from './desktop';
+import { ConnectionSetup } from './components/ConnectionSetup';
 import { useEffect, useState } from 'react';
 import { useFlowStore } from './store/useFlowStore';
 import { Sidebar } from './components/Sidebar';
@@ -18,6 +19,8 @@ import { boardIdFromPath } from './boardRouting';
 import s from './App.module.css';
 
 export function App() {
+  const [connection,setConnection] = useState<DesktopInfo | null>(null);
+  const [connectionReady,setConnectionReady] = useState(!isDesktop);
   const activeView = useFlowStore((st) => st.activeView);
   const activeBoardId = useFlowStore((st) => st.activeBoardId);
   const isLoading = useFlowStore((st) => st.isLoading);
@@ -59,13 +62,19 @@ export function App() {
     window.addEventListener('online',refresh);
     document.addEventListener('visibilitychange',refresh);
     window.addEventListener('popstate', onPopState);
-    void useFlowStore.getState().init();
+    if(isDesktop) void desktopInfo().then(info=>{
+      setConnection(info);
+      if(info.configured){setConnectionReady(true);void useFlowStore.getState().init();}
+    }).catch(error=>setConnection({configured:false,workerUrl:null,updatesUrl:null,boardId:'shared',error:String(error)}));
+    else void useFlowStore.getState().init();
     return () => {window.removeEventListener('popstate',onPopState);window.removeEventListener('focus',refresh);window.removeEventListener('online',refresh);document.removeEventListener('visibilitychange',refresh);};
   }, []);
 
   useEffect(() => {
     if (isDesktop && !isLoading && !error) void notifyAppReady().catch(() => {});
   }, [isLoading, error]);
+
+  if(isDesktop && !connectionReady && connection) return <ConnectionSetup initialUrl={connection.workerUrl || ''} initialError={connection.error || ''}/>;
 
   if (isLoading) {
     return (
@@ -75,7 +84,7 @@ export function App() {
     );
   }
 
-  if (error) return <FullPageMessage title="FlowBoard couldn't start" detail={error} />;
+  if (error) return <FullPageMessage title="FlowBoard couldn't start" detail={error} action={isDesktop ? {label:'修改连接',run:()=>setConnectionReady(false)} : undefined}/>;
 
   return (
     <div className={cx(s.app, sidebarHidden && s.sidebarHidden)} data-density={density}>

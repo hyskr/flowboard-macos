@@ -1040,10 +1040,11 @@ dependencies = [
 
 [[package]]
 name = "flowboard"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "dirs 6.0.0",
  "reqwest 0.12.28",
+ "security-framework",
  "serde",
  "serde_json",
  "tauri",

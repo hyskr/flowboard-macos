@@ -55,7 +55,7 @@ export function CardView({ card, variant, compact = false }: { card: Card; varia
 export const SortableCard = memo(function SortableCard({ card, className, compact }: { card: Card; className?: string; compact?: boolean }) {
   const openModal = useFlowStore((st) => st.openModal);
   const columns = useFlowStore((st) => st.columns);
-  const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const [menu, setMenu] = useState<{anchor:HTMLElement;point?:{x:number;y:number}} | null>(null);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
     data: { type: 'Card' },
@@ -64,6 +64,10 @@ export const SortableCard = memo(function SortableCard({ card, className, compac
   return (
     <div
       ref={setNodeRef}
+      onContextMenu={event=>{
+        event.preventDefault();event.stopPropagation();
+        if(!isDragging) setMenu({anchor:event.currentTarget.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')!,point:{x:event.clientX,y:event.clientY}});
+      }}
       className={cx(s.sortable, className)}
       style={{ transform: CSS.Translate.toString(transform), transition }}
     >
@@ -74,15 +78,15 @@ export const SortableCard = memo(function SortableCard({ card, className, compac
         {...listeners}
         aria-label={card.title}
         aria-roledescription="Draggable card. Press Enter to open, Space to pick up."
-        onClick={() => !isDragging && openModal('card', { card })}
+        onClick={(event) => !isDragging && !event.ctrlKey && openModal('card', { card })}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !isDragging) { e.preventDefault(); openModal('card', { card }); }
           else listeners?.onKeyDown?.(e);
         }}
       ><CardView card={card} variant={isDragging ? 'placeholder' : undefined} compact={compact} /></div>
       {!isDragging && <input className={s.completeToggle} type="checkbox" checked={!!card.completedAt} aria-label={`${card.completedAt ? '重新打开' : '完成'} ${card.title}`} onChange={() => { void useFlowStore.getState().toggleCardComplete(card.id).catch(() => useFlowStore.getState().toast('保存失败，请重试', '⚠')); }} />}
-      {!isDragging && <button className={cx(s.options, menu && s.optionsOpen)} onClick={(e) => setMenu(menu ? null : e.currentTarget)} aria-label={`Actions for ${card.title}`} aria-haspopup="menu" aria-expanded={!!menu}><Icon name="more" size={15} /></button>}
-      {menu && <Menu anchor={menu} onClose={() => setMenu(null)}>
+      {!isDragging && <button className={cx(s.options, menu && s.optionsOpen)} onClick={(e) => setMenu(menu ? null : {anchor:e.currentTarget})} aria-label={`Actions for ${card.title}`} aria-haspopup="menu" aria-expanded={!!menu}><Icon name="more" size={15} /></button>}
+      {menu && <Menu anchor={menu.anchor} point={menu.point} onClose={() => setMenu(null)}>
         <MenuItem icon="pencil" onClick={() => { setMenu(null); openModal('card', { card }); }}>Edit card</MenuItem>
         <MenuItem icon="copy" onClick={async () => {
           setMenu(null);

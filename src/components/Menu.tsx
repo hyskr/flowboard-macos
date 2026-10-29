@@ -5,8 +5,9 @@ import { cx } from '../utils';
 import s from './Menu.module.css';
 
 /** Popover anchored to an element. Closes on outside click, Escape, scroll or resize. */
-export function Menu({ anchor, onClose, children, align = 'end' }: {
+export function Menu({ anchor, point, onClose, children, align = 'end' }: {
   anchor: HTMLElement;
+  point?: {x:number;y:number};
   onClose: () => void;
   children: ReactNode;
   align?: 'start' | 'end';
@@ -17,12 +18,12 @@ export function Menu({ anchor, onClose, children, align = 'end' }: {
     const el = ref.current!;
     const a = anchor.getBoundingClientRect();
     const m = el.getBoundingClientRect();
-    const left = Math.max(8, Math.min(align === 'end' ? a.right - m.width : a.left, innerWidth - m.width - 8));
-    let top = a.bottom + 6;
-    if (top + m.height > innerHeight - 8) top = Math.max(8, a.top - m.height - 6);
+    const left = Math.max(8, Math.min(point ? point.x : align === 'end' ? a.right - m.width : a.left, innerWidth - m.width - 8));
+    let top = point ? point.y : a.bottom + 6;
+    if (top + m.height > innerHeight - 8) top = Math.max(8, point ? point.y - m.height : a.top - m.height - 6);
     Object.assign(el.style, { left: `${left}px`, top: `${top}px`, visibility: 'visible' });
     el.querySelector<HTMLElement>('button, input')?.focus();
-  }, [anchor, align]);
+  }, [anchor, align, point]);
 
   useEffect(() => {
     const onDown = (e: Event) => {
@@ -56,7 +57,7 @@ export function Menu({ anchor, onClose, children, align = 'end' }: {
   };
 
   return createPortal(
-    <div ref={ref} className={s.menu} role="menu" onKeyDown={onKeyDown}>
+    <div ref={ref} className={s.menu} role="menu" onContextMenu={event=>{event.preventDefault();event.stopPropagation();}} onKeyDown={onKeyDown}>
       {children}
     </div>,
     document.body,

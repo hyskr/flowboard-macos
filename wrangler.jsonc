@@ -19,5 +19,8 @@
       "database_id": "86e5cb02-7f76-472b-811a-7bfb2db74c4b",
       "migrations_dir": "drizzle"
     }
-  ]
+  ],
+  "vars": {
+    "UPDATES_URL": "https://flowboard-updates.hyskr0620.workers.dev"
+  }
 }

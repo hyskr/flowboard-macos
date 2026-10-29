@@ -134,6 +134,7 @@ export interface FlowState {
   modal: ModalState | null;
   toasts: Toast[];
   workerStatus: boolean;
+  syncError: string | null;
   workerUrl: string;
   syncInterval: number;
   isLoading: boolean;

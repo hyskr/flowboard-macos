@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import desktop from './desktop.js';
+import { createDatabase } from './test-db.js';
+
+const {sql,env}=createDatabase();
+env.APP_TOKEN='test-shared-key';env.UPDATES_URL='https://updates.example.test';
+const call=(path,key=env.APP_TOKEN,body={})=>desktop.fetch(new Request(`https://board.test${path}`,{method:'POST',headers:{'Content-Type':'application/json',...(key?{'X-FlowBoard-Access':key}:{})},body:JSON.stringify(body)}),env,{});
+assert.equal((await call('/api/connection/info','')).status,401);
+assert.equal((await call('/api/tasks/read','wrong')).status,401);
+let response=await call('/api/connection/info');assert.equal(response.status,200);
+assert.deepEqual(await response.json(),{boardId:'shared',updatesUrl:env.UPDATES_URL,protocolVersion:4});
+let board=await (await call('/api/tasks/read')).json();assert.equal(board.columns.length,3);assert.equal(board.cards.length,0);
+response=await call('/api/tasks/batch',env.APP_TOKEN,{protocolVersion:4,actions:[{action:'upsert_task',args:{sourceKey:'existing-card',title:'保留原卡片'}}]});
+assert.equal(response.status,200);const id=(await response.json()).cards[0].id;
+await call('/api/connection/info');
+board=await (await call('/api/tasks/read')).json();assert.equal(board.cards[0].id,id);assert.equal(board.columns.length,3);
+const previous=env.APP_TOKEN;env.APP_TOKEN='replacement-shared-key';
+assert.equal((await call('/api/tasks/read',previous)).status,401);
+assert.equal((await call('/api/tasks/read',env.APP_TOKEN)).status,200);
+delete env.UPDATES_URL;
+assert.equal((await (await call('/api/connection/info')).json()).updatesUrl,null);
+sql.close();console.log('Shared key access, first connection, existing data and key replacement passed.');

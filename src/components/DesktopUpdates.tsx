@@ -6,7 +6,7 @@ import { download as downloadFrontend } from 'tauri-plugin-hot-update-api';
 import { cx } from '../utils';
 import ui from './ui.module.css';
 
-export function DesktopUpdates() {
+export function DesktopUpdates({enabled = true}:{enabled?:boolean}) {
   const [version,setVersion] = useState('');
   useEffect(()=>{void getVersion().then(setVersion).catch(()=>setVersion('无法读取'));},[]);
   const [busy, setBusy] = useState(false);
@@ -33,7 +33,8 @@ export function DesktopUpdates() {
   };
   return <section style={{ margin: '24px 0' }}><h3 style={{ marginBottom: 10 }}>应用更新</h3>
     <p className={ui.hint} style={{marginBottom:12}}>当前应用版本：{version || '读取中…'}</p>
-    <button className={cx(ui.btn, ui.secondary)} disabled={busy} onClick={update || ready ? install : checkUpdates}>{busy ? '处理中…' : update ? '安装更新并重启' : ready ? '重启以应用更新' : '检查更新'}</button>
+    <button className={cx(ui.btn, ui.secondary)} disabled={busy || !enabled} onClick={update || ready ? install : checkUpdates}>{busy ? '处理中…' : update ? '安装更新并重启' : ready ? '重启以应用更新' : '检查更新'}</button>
+    {!enabled && <p className={ui.hint}>此共享服务未配置更新地址，可从发布页下载新版应用。</p>}
     {message && <p role="status" style={{ marginTop: 10, color: 'var(--fg-muted)' }}>{message}</p>}
   </section>;
 }

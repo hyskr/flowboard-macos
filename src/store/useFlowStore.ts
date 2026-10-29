@@ -145,6 +145,7 @@ export const useFlowStore = create<FlowState>((set, get) => {
     modal: null,
     toasts: [],
     workerStatus: false,
+    syncError: null,
     workerUrl: WORKER_URL,
     syncInterval: 60,
     isLoading: true,
@@ -155,7 +156,11 @@ export const useFlowStore = create<FlowState>((set, get) => {
       try { void navigator.storage?.persist?.().catch(() => {}); }
       catch { /* Storage permissions must not prevent opening existing boards. */ }
       try {
-        await db.open();
+        const desktop=isDesktop ? await desktopInfo() : null;
+        if (desktop) {
+          if (!desktop.configured || !desktop.workerUrl) throw new Error('请先连接共享看板。');
+          await db.openForEndpoint(desktop.workerUrl);
+        } else await db.open();
         const [boards, columns, cards, settings, activity] = await Promise.all([
           db.getAll<Board>('boards'),
           db.getAll<Column>('columns'),
@@ -186,7 +191,7 @@ export const useFlowStore = create<FlowState>((set, get) => {
           activeBoardId = sortedBoards[0]?.id ?? null;
         }
 
-        if (isDesktop) workerUrl = (await desktopInfo()).workerUrl;
+        if (desktop?.workerUrl) workerUrl = desktop.workerUrl;
         activeTheme = applyTheme(activeTheme);
         sync.setWorkerUrl(workerUrl);
 
@@ -457,10 +462,11 @@ export const useFlowStore = create<FlowState>((set, get) => {
           try {
             await writes;
             const result = await sync.synchronize(c.boardId);
+            set({syncError:null});
             const data = materialize(result.state) as unknown as Pick<FlowState,'boards'|'columns'|'cards'|'activity'>;
             const latest = get();
             set({boards:[...latest.boards.filter(b=>b.id!==c.boardId),...data.boards],columns:[...latest.columns.filter(b=>b.boardId!==c.boardId),...data.columns].sort((a,b)=>a.order-b.order),cards:[...latest.cards.filter(b=>b.boardId!==c.boardId),...data.cards].sort((a,b)=>a.order-b.order),activity:[...latest.activity.filter(b=>b.boardId!==c.boardId),...data.activity].sort((a,b)=>b.ts-a.ts),conflicts:result.conflicts});
-          } catch { set({workerStatus:false}); }
+          } catch(error) { set({workerStatus:false,syncError:error instanceof Error ? error.message : '同步失败'}); }
         }
         armSyncTimer(get().syncInterval);
       });

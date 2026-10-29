@@ -24,9 +24,6 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - run: node scripts/prepare-ci.mjs
-        env:
-          FLOWBOARD_CONNECTION_JSON: ${{ secrets.FLOWBOARD_CONNECTION_JSON }}
       - run: npm run test:release
       - run: npm run build:cloud
       - uses: actions/upload-artifact@v4
@@ -42,8 +39,11 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: FlowBoard v__VERSION__
-          releaseBody: 来源聊天跳转与 skill 版本检查。Apple Silicon / Intel 通用应用，将 FlowBoard.app 移入应用程序。
+          releaseBody: 首次连接配置共享密钥，安装包不内置生产凭证；卡片右键操作菜单。Apple Silicon / Intel 通用应用。
           releaseDraft: false
           uploadUpdaterJson: false
           args: --target universal-apple-darwin --bundles app,dmg
+      - run: node scripts/prepare-ci.mjs
+        env:
+          FLOWBOARD_CONNECTION_JSON: ${{ secrets.FLOWBOARD_CONNECTION_JSON }}
       - run: node scripts/publish-updates.mjs native

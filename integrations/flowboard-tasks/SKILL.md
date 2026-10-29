@@ -1,7 +1,7 @@
 ---
 name: flowboard-tasks
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   protocol-version: "4"
 description: 自动把对话中已确认、需要后续跟进的待办保存到 FlowBoard，并在要求、日期、栏目或完成状态变化时更新原卡片。适用于“就按这个做”“下周交付”“这个做完了”等任务变化；单纯问答、设想和未采纳的建议不建卡。
 ---
@@ -27,7 +27,7 @@ description: 自动把对话中已确认、需要后续跟进的待办保存到 
 
 ## 使用
 
-入口是本 skill 目录内的 `scripts/flowboard`。它调用已安装的 FlowBoard macOS 应用内置命令，无需 Python、账号或额外连接配置。以下 `<skill-dir>` 替换为本文件所在目录的绝对路径。
+入口是本 skill 目录内的 `scripts/flowboard`。它调用已安装的 FlowBoard macOS 应用内置命令，无需 Python 或账号。首次使用请先在 App 中填写一次服务地址和共享密钥，skill 复用应用连接，不另外保存凭证。以下 `<skill-dir>` 替换为本文件所在目录的绝对路径。
 
 应用中点击“安装到 Codex”或“安装到 Claude Code”后即可使用。
 

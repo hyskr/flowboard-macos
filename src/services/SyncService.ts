@@ -23,6 +23,7 @@ export class SyncService {
     let result: { state: CrdtState; conflicts: CardConflict[] } | undefined;
     for (let offset = 0; offset < Math.max(1, pending.length); offset += 100) {
       const response = await this.fetchJson('/api/sync/commit', { boardId, keyHash: creds.keyHash, ops: pending.slice(offset, offset + 100), protocolVersion: SYNC_PROTOCOL });
+      if (response.status === 401 || response.status === 403) throw new Error('共享密钥无效，请修改连接信息。');
       if (!response.ok) throw new Error('同步失败，修改保留在本机。');
       const reply = await response.json();
       if (reply.protocolVersion !== SYNC_PROTOCOL || !validState(reply.state, boardId)) throw new Error('同步版本不匹配');

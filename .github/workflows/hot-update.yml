@@ -25,11 +25,11 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      - run: npm run build:desktop
+      - run: cargo install tauri-plugin-hot-update --version 0.1.1 --features cli --locked
       - run: node scripts/prepare-ci.mjs
         env:
           FLOWBOARD_CONNECTION_JSON: ${{ secrets.FLOWBOARD_CONNECTION_JSON }}
-      - run: npm run build:desktop
-      - run: cargo install tauri-plugin-hot-update --version 0.1.1 --features cli --locked
       - run: node scripts/sign-hot-update.mjs
         env:
           HOT_UPDATE_VERSION: ${{ inputs.version }}

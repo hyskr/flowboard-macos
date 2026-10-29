@@ -19,7 +19,6 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - run: node scripts/prepare-ci.mjs check
       - run: npm run test:release
       - run: npm run build:desktop
       - run: cargo test --locked --lib --manifest-path src-tauri/Cargo.toml

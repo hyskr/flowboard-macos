@@ -5,9 +5,9 @@ import type { CrdtOp, StoreName, CardConflict } from '../types';
 export class DatabaseService {
   private db: IDBDatabase | null = null;
 
-  async open(): Promise<this> {
+  async open(name = DB_NAME): Promise<this> {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      const req = indexedDB.open(name, DB_VERSION);
       req.onupgradeneeded = (e) => {
         const db = (e.target as IDBOpenDBRequest).result;
         const stores: { name: StoreName; keyPath: string; indexes: string[] }[] = [
@@ -32,6 +32,14 @@ export class DatabaseService {
       };
       req.onerror = () => reject(req.error);
     });
+  }
+
+  async openForEndpoint(endpoint: string): Promise<this> {
+    const legacy = await new DatabaseService().open();
+    const saved = await legacy.get<{value:string}>('settings','workerUrl');
+    legacy.db?.close();
+    const original = saved?.value.replace(/\/$/,'') === endpoint.replace(/\/$/,'');
+    return this.open(original ? DB_NAME : `${DB_NAME}:${endpoint}`);
   }
 
   get<T>(store: StoreName, key: string): Promise<T | undefined> {

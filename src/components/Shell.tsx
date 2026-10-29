@@ -32,13 +32,14 @@ export function ToastContainer() {
   );
 }
 
-export function FullPageMessage({ title, detail }: { title: string; detail?: string }) {
+export function FullPageMessage({ title, detail, action }: { title: string; detail?: string; action?: {label:string;run:()=>void} }) {
   return (
     <div className={s.fullPage}>
       <span className={s.fullPageIcon}><Icon name="alert" size={22} /></span>
       <h1>{title}</h1>
       {detail && <code>{detail}</code>}
       <button onClick={() => location.reload()}>Reload</button>
+      {action && <button onClick={action.run}>{action.label}</button>}
     </div>
   );
 }

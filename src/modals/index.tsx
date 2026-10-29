@@ -6,6 +6,7 @@ import { cx, uid } from '../utils';
 import { CardModal } from './CardModal';
 import { ThemeModal } from './ThemeModal';
 import { isDesktop } from '../desktop';
+import { ConnectionForm } from '../components/ConnectionSetup';
 import { DesktopSettingsModal } from './DesktopSettingsModal';
 import { ConnectModal } from './ConnectModal';
 import { SettingsModal } from './SettingsModal';
@@ -86,6 +87,7 @@ export function ModalRouter() {
       case 'card': return <CardModal key={(p.card as Card | undefined)?.id ?? 'new'} card={p.card as Card | undefined} defaultColId={p.defaultColId as string | undefined} />;
       case 'addBoard': return <AddBoardModal />;
       case 'confirm': return <ConfirmModal title={p.title as string} message={p.message as ReactNode} confirmLabel={p.confirmLabel as string} onConfirm={p.onConfirm as () => unknown} />;
+      case 'connection': return <Modal title="连接共享看板"><ConnectionForm initialUrl={p.workerUrl as string | undefined}/></Modal>;
       case 'theme': return <ThemeModal />;
       case 'connect': return isDesktop ? <DesktopSettingsModal /> : <ConnectModal />;
       case 'settings': return isDesktop ? <DesktopSettingsModal /> : <SettingsModal initialTab={p.tab as 'Boards' | undefined} />;

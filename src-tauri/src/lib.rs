@@ -1,21 +1,14 @@
 mod skills;
-use serde::{Deserialize, Serialize};
+mod connection;
+use serde::Serialize;
 use tauri::Manager;
 use serde_json::{json, Value};
 use std::{fs, io::{self, Read}, path::{Path, PathBuf}, time::Duration};
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Connection { worker_url: String, app_token: String, updates_url: String }
-
-fn connection() -> Result<Connection, String> {
-    serde_json::from_str(include_str!("../private/connection.json")).map_err(|_| "应用连接配置无效".into())
-}
-
-struct AppState { connection: Connection, client: reqwest::Client }
+struct AppState { connection: Option<connection::Connection>, client: reqwest::Client }
 
 fn app_state() -> Result<AppState, String> {
-    Ok(AppState { connection: connection()?, client: reqwest::Client::builder().timeout(Duration::from_secs(20)).build().map_err(|e| e.to_string())? })
+    Ok(AppState { connection: connection::load().unwrap_or(None), client: reqwest::Client::builder().timeout(Duration::from_secs(20)).redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())? })
 }
 
 #[derive(Serialize)]
@@ -24,17 +17,13 @@ struct ApiReply { status: u16, body: String }
 async fn send(state: &AppState, path: &str, mut body: Value) -> Result<ApiReply, String> {
     if !path.starts_with("/api/") || path.contains("..") || path.contains('?') { return Err("无效的接口路径".into()); }
     body["protocolVersion"] = json!(4);
-    let response = state.client.post(format!("{}{}", state.connection.worker_url.trim_end_matches('/'), path))
-        .header("X-FlowBoard-Access", &state.connection.app_token).json(&body).send().await
-        .map_err(|_| "暂时无法连接共享空间，修改已保存在本机。".to_string())?;
+    let connection=state.connection.as_ref().ok_or("请先打开 FlowBoard，填写服务地址和共享密钥。")?;
+    let response = state.client.post(format!("{}{}", connection.worker_url.trim_end_matches('/'), path))
+        .header("X-FlowBoard-Access", &connection.app_token).json(&body).send().await
+        .map_err(|_| "暂时无法连接共享空间，请检查地址和网络。".to_string())?;
     let status = response.status().as_u16();
     let body = response.text().await.map_err(|_| "无法读取同步响应".to_string())?;
     Ok(ApiReply { status, body })
-}
-
-#[tauri::command]
-fn desktop_info() -> Result<Value, String> {
-    Ok(json!({"workerUrl": connection()?.worker_url, "boardId": "shared"}))
 }
 
 #[tauri::command]
@@ -72,12 +61,13 @@ async fn skill_request(state: &AppState, route: &str, data: Value) -> Result<Val
 async fn run_skill(command: &str) -> Result<Value, String> {
     let pending = pending_path()?;
     match command {
-        "status" => return Ok(json!({"configured":true,"pending":pending.exists(),"boardId":"shared"})),
+        "status" => return Ok(json!({"configured":connection::load()?.is_some(),"pending":pending.exists(),"boardId":"shared"})),
         "pending" => return if pending.exists() { serde_json::from_slice(&fs::read(&pending).map_err(|e| e.to_string())?).map_err(|e| e.to_string()) } else { Ok(json!({"actions":[]})) },
         "discard" => { if pending.exists() { fs::remove_file(pending).map_err(|e| e.to_string())?; } return Ok(json!({"discarded":true})); },
         _ => (),
     }
     let state = app_state()?;
+    let current=state.connection.as_ref().ok_or("请先打开 FlowBoard，填写服务地址和共享密钥。")?;
     if command == "read" { return skill_request(&state, "/api/tasks/read", json!({})).await; }
     let payload = match command {
         "batch" => {
@@ -95,13 +85,14 @@ async fn run_skill(command: &str) -> Result<Value, String> {
                 }
                 if action.get("requestId").is_none() { action["requestId"] = json!(format!("{}-{}-{}", std::process::id(), stamp, index)); }
             }
-            let payload = json!({"actions":actions});
+            let payload = json!({"server":current.worker_url,"actions":actions});
             write_private(&pending, &serde_json::to_vec(&payload).map_err(|e| e.to_string())?)?;
             payload
         },
         "retry" => { if !pending.exists() { return Ok(json!({"ok":true,"operations":0})); } serde_json::from_slice(&fs::read(&pending).map_err(|e| e.to_string())?).map_err(|e| e.to_string())? },
         _ => return Err("支持 read、batch、status、pending、retry、discard。".into()),
     };
+    if payload["server"].as_str()!=Some(current.worker_url.as_str()) {return Err("待同步批次属于其他服务或没有来源地址。请用 pending 查看，切回原服务处理，或确认内容后重新提交。".into());}
     let result = skill_request(&state, "/api/tasks/batch", payload).await?;
     if result["ok"] != true { return Err("共享空间尚未确认保存，操作已保留。".into()); }
     fs::remove_file(pending).map_err(|e| e.to_string())?;
@@ -154,13 +145,16 @@ pub fn run() {
     }
     let state = app_state().expect("Cannot load application connection");
     let mut context = tauri::generate_context!();
-    let origin = state.connection.updates_url.trim_end_matches('/');
-    context.config_mut().plugins.0.get_mut("updater").expect("Missing updater config")["endpoints"] = json!([format!("{origin}/updates/latest.json")]);
-    context.config_mut().plugins.0.get_mut("hot-update").expect("Missing hot update config")["manifestUrl"] = json!(format!("{origin}/updates/{}/manifest.json", state.connection.app_token));
-    let hot_update = tauri_plugin_hot_update::install(&mut context);
-    let updater = tauri_plugin_updater::Builder::new()
-        .header("X-FlowBoard-Access", state.connection.app_token.as_str()).expect("Invalid application access header").build();
-    tauri::Builder::default()
+    let (hot_update,updater)=if let Some((origin,token))=state.connection.as_ref().and_then(|connection|connection.updates_url.as_deref().map(|url|(url.trim_end_matches('/'),connection.app_token.as_str()))) {
+        context.config_mut().plugins.0.get_mut("updater").expect("Missing updater config")["endpoints"] = json!([format!("{origin}/updates/latest.json")]);
+        context.config_mut().plugins.0.get_mut("hot-update").expect("Missing hot update config")["manifestUrl"] = json!(format!("{origin}/updates/{token}/manifest.json"));
+        (Some(tauri_plugin_hot_update::install(&mut context)),Some(tauri_plugin_updater::Builder::new().header("X-FlowBoard-Access",token).expect("Invalid application access header").build()))
+    } else {
+        context.config_mut().plugins.0.get_mut("hot-update").expect("Missing hot update config")["enabled"]=json!(false);
+        (None,None)
+    };
+    let mut builder=tauri::Builder::default()
+
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
@@ -168,12 +162,12 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_hot_update::init(hot_update))
         .plugin(tauri_plugin_notification::init())
-        .plugin(updater)
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_process::init())
-        .manage(state)
-        .invoke_handler(tauri::generate_handler![desktop_info, api_request, skills::install_skill, skills::skill_status, open_source_chat, export_backup])
+        .manage(state);
+    if let Some(hot_update)=hot_update {builder=builder.plugin(tauri_plugin_hot_update::init(hot_update));}
+    if let Some(updater)=updater {builder=builder.plugin(updater);}
+    builder.invoke_handler(tauri::generate_handler![connection::desktop_info, connection::save_connection, api_request, skills::install_skill, skills::skill_status, open_source_chat, export_backup])
         .run(context).expect("Cannot start FlowBoard");
 }

@@ -1,7 +1,9 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
 export const isDesktop = typeof window !== 'undefined' && isTauri();
-export const desktopInfo = () => invoke<{ workerUrl: string; boardId: string }>('desktop_info');
+export interface DesktopInfo { configured: boolean; workerUrl: string | null; updatesUrl: string | null; boardId: string; error?: string | null }
+export const desktopInfo = () => invoke<DesktopInfo>('desktop_info');
+export const saveConnection = (workerUrl:string,appToken:string) => invoke('save_connection',{workerUrl,appToken});
 export interface SkillStatus { status: 'missing' | 'compatible' | 'update_required' | 'installed'; path: string; version: string | null; bundledVersion: string; protocolVersion: number }
 export const checkSkill = (target: 'codex' | 'claude') => invoke<SkillStatus>('skill_status', { target });
 export const installSkill = (target: 'codex' | 'claude', update = false) => invoke<SkillStatus>('install_skill', { target, update });

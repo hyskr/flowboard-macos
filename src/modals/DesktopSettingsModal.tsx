@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useFlowStore } from '../store/useFlowStore';
 import { Modal } from './Modal';
 import { cx } from '../utils';
-import { checkSkill, installSkill, type SkillStatus } from '../desktop';
+import { desktopInfo, checkSkill, installSkill, type SkillStatus } from '../desktop';
 import ui from '../components/ui.module.css';
 import { DesktopUpdates } from '../components/DesktopUpdates';
 
@@ -10,11 +10,15 @@ type Target = 'codex' | 'claude';
 const targets: {id:Target;name:string}[] = [{id:'codex',name:'Codex'},{id:'claude',name:'Claude Code'}];
 
 export function DesktopSettingsModal() {
+  const [updatesEnabled,setUpdatesEnabled]=useState(false);
+  useEffect(()=>{void desktopInfo().then(info=>setUpdatesEnabled(!!info.updatesUrl));},[]);
+  const workerUrl=useFlowStore(st=>st.workerUrl);
+  const syncError=useFlowStore(st=>st.syncError);
   const connected = useFlowStore(st => st.workerStatus);
   const syncInterval = useFlowStore(st => st.syncInterval);
   const setSyncInterval = useFlowStore(st => st.setSyncInterval);
   const [syncBusy,setSyncBusy] = useState(false);
-  const { exportData, importData, toast } = useFlowStore.getState();
+  const { exportData, importData, toast, openModal } = useFlowStore.getState();
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
   const [statuses,setStatuses] = useState<Partial<Record<Target,SkillStatus>>>({});
@@ -43,7 +47,8 @@ export function DesktopSettingsModal() {
   };
   const embeddedVersion=statuses.codex?.bundledVersion || statuses.claude?.bundledVersion;
   return <Modal title="设置与 skill" description="此应用已连接你们的共享看板。">
-    <div className={ui.field}><strong>{connected?'共享同步已连接':'本地保存中，连接恢复后继续同步'}</strong><p className={ui.hint}>修改后自动上传，切回应用时立即同步。</p>
+    <div className={ui.field}><p style={{overflowWrap:'anywhere',marginBottom:8}}>服务地址：{workerUrl}</p><button className={cx(ui.btn,ui.secondary)} onClick={()=>openModal('connection',{workerUrl})}>修改连接</button></div>
+    <div className={ui.field}><strong>{connected?'共享同步已连接':'本地保存中，连接恢复后继续同步'}</strong><p className={ui.hint}>修改后自动上传，切回应用时立即同步。</p>{syncError&&<p role="alert" style={{color:'var(--danger)'}}>{syncError}</p>}
       <label className={ui.label} htmlFor="cloud-sync-interval" style={{marginTop:12}}>检查云端更新的间隔</label>
       <select id="cloud-sync-interval" className={ui.input} value={syncInterval} disabled={syncBusy} onChange={event=>void changeInterval(Number(event.target.value))}>
         {[{seconds:60,label:'每 1 分钟'},{seconds:120,label:'每 2 分钟'},{seconds:300,label:'每 5 分钟'},{seconds:600,label:'每 10 分钟'},{seconds:1800,label:'每 30 分钟'},{seconds:3600,label:'每 1 小时'}].map(item=><option key={item.seconds} value={item.seconds}>{item.label}</option>)}
@@ -60,7 +65,7 @@ export function DesktopSettingsModal() {
       })}
       {message&&<p role="status" style={{marginTop:12,color:'var(--fg-muted)'}}>{message}</p>}
     </section>
-    <DesktopUpdates />
+    <DesktopUpdates enabled={updatesEnabled} />
     <section><h3 style={{marginBottom:12}}>备份</h3><div style={{display:'flex',gap:8}}><button className={cx(ui.btn,ui.secondary)} onClick={exportData}>导出看板</button><label className={cx(ui.btn,ui.secondary)}>导入备份<input type="file" accept=".json" hidden onChange={async e=>{const file=e.target.files?.[0];if(!file)return;try{await importData(await file.text());}catch{toast('无法读取备份文件','⚠');}e.target.value='';}}/></label></div></section>
   </Modal>;
 }

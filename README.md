@@ -5,10 +5,10 @@ macOS 共享任务看板。界面使用 Tauri 2 打包在应用内，Cloudflare 
 ## 使用
 
 1. 打开安装包，将 FlowBoard 拖入“应用程序”。
-2. 两台 Mac 打开同一个应用，即可进入同一张共享看板，无需注册、密码或地址配置。
+2. 首次打开填写 Cloudflare 服务地址和共享密钥。协作者填写相同配置，进入同一张共享看板。无需注册账号。
 3. 在“安装 skill”中选择 Codex 或 Claude Code。新开对话后，已确认的待办及状态变化会按 skill 规则同步。
 
-卡片支持编辑、拖动排序、跨栏目移动和勾选完成。完成后保留卡片、完成时间和活动记录。离线修改保存在本机，恢复连接后继续同步。操作后自动上传，切回应用时立即同步；前台按设置的间隔检查版本（默认每分钟），后台暂停定时拉取。
+卡片支持编辑、拖动排序、跨栏目移动和勾选完成。右键卡片或点击三点按钮可打开卡片操作菜单。完成后保留卡片、完成时间和活动记录。离线修改保存在本机，恢复连接后继续同步。操作后自动上传，切回应用时立即同步；前台按设置的间隔检查版本（默认每分钟），后台暂停定时拉取。
 
 ## 冲突处理
 
@@ -18,15 +18,15 @@ macOS 共享任务看板。界面使用 Tauri 2 打包在应用内，Cloudflare 
 
 ## 访问方式
 
-Cloudflare 仅提供同步接口，不托管网页。应用内置共享访问凭证，普通浏览器无法直接访问。skill 通过应用内置命令读写同一张看板，不需要额外运行后台服务或安装 Python。
+Cloudflare 仅提供同步接口，不托管网页。每个数据请求都需要共享密钥；安装包不内置生产服务地址或密钥。服务地址保存在应用数据目录，密钥保存在 macOS 钥匙串。设置中可以修改连接，保存后应用重新启动。切换服务会使用各自的本地数据缓存。
 
-凭证供持有应用的协作者使用，不区分个人角色。请仅将安装包分享给协作者。
+skill 通过应用命令复用本机连接，不需要另填密钥、运行后台服务或安装 Python。持有密钥的人也可以直接调用 API；共享密钥不区分个人或设备。更换 Worker 的 `APP_TOKEN` 后，所有设备都需要重新填写。
 
 ## 构建与发布
 
 正式安装包由 GitHub Actions 的 **macOS release** 工作流生成，同时发布到私有 Release 和应用内更新通道。推送与配置版本一致的 `v*` tag，或从 Actions 页面手动运行。工作流提供通用 DMG 与签名更新包，Cloudflare Worker 构建产物单独保存为 `cloudflare-worker` artifact。
 
-PR 和 main 的检查使用不可访问生产环境的测试连接，不需要仓库 Secrets。正式发布使用 `FLOWBOARD_CONNECTION_JSON` 和 `TAURI_SIGNING_PRIVATE_KEY`，不会将私有连接或签名密钥提交到 Git。
+PR、main 检查和安装包构建不需要生产连接。`TAURI_SIGNING_PRIVATE_KEY` 用于签名更新包；`FLOWBOARD_CONNECTION_JSON` 仅在构建完成后用于上传到维护者的更新服务，不会编译进应用。私有连接和签名密钥不提交到 Git。
 
 设置页显示当前应用版本、App 内置 skill 版本和 Codex／Claude Code 已安装的 skill 版本；同步检查间隔可在每 1 分钟至每 1 小时之间选择，保存在本机。
 
@@ -38,7 +38,7 @@ Codex 创建任务时，应用内置命令自动读取 `CODEX_THREAD_ID`，记�
 
 ## Cloudflare
 
-`wrangler.jsonc` 声明 Worker 和 D1 绑定。部署自己的实例时替换账号与数据库 ID，应用与 Worker 的 `APP_TOKEN` 需要一致。
+`wrangler.jsonc` 声明 Worker 和 D1 绑定。部署自己的实例时替换账号与数据库 ID，并设置 `APP_TOKEN`。协作者首次连接时填写此密钥。`UPDATES_URL` 为可选的签名更新服务地址；不提供时禁用应用内更新。
 
 ```bash
 npm run build:cloud
@@ -46,7 +46,7 @@ npx wrangler deploy
 npx wrangler secret put APP_TOKEN
 ```
 
-首次创建数据库使用 `worker/migrations/schema.sql` 初始化。共享看板 ID 为 `shared`，初始栏目为待办、进行中、已交付。
+首次创建数据库使用 `worker/migrations/schema.sql` 初始化。首次通过 `/api/connection/info` 连接时自动创建共享看板，已有看板不变。共享看板 ID 为 `shared`，初始栏目为待办、进行中、已交付。
 
 ## 桌面插件
 
@@ -56,7 +56,7 @@ npx wrangler secret put APP_TOKEN
 
 ## 私有发布与更新
 
-GitHub 仓库、Release 和安装包均为私有。Actions 将完整应用上传到私有 GitHub Release，同时将签名更新包保存到私有 R2 bucket。独立的 `flowboard-updates` Worker 提供更新接口，并通过 `SHARED_SPACE` service binding 验证应用共享凭证。R2 不开放公开访问。
+当前 GitHub 仓库和 Release 为私有。1.3.0 起安装包不包含生产连接，可用于自部署分发。此前内置密钥的私有版本仅供原协作者使用。Actions 将完整应用上传到 GitHub Release，同时将签名更新包保存到私有 R2 bucket。独立的 `flowboard-updates` Worker 提供更新接口，并通过 `SHARED_SPACE` service binding 验证应用共享凭证。R2 不开放公开访问。
 
 完整包使用请求头鉴权；界面包使用携带共享凭证的专属地址。更新接口关闭请求 URL 的 invocation logs。所有更新均验证签名；应用不包含 GitHub token 或签名私钥。
 
