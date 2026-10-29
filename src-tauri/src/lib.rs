@@ -1,3 +1,4 @@
+mod skills;
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 use serde_json::{json, Value};
@@ -50,27 +51,6 @@ fn write_private(path: &Path, content: &[u8]) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn install_skill(target: String) -> Result<Value, String> {
-    let home = dirs::home_dir().ok_or("无法找到用户目录")?;
-    let base = match target.as_str() {
-        "codex" => std::env::var_os("CODEX_HOME").map(PathBuf::from).unwrap_or_else(|| home.join(".codex")),
-        "claude" => home.join(".claude"),
-        _ => return Err("请选择 Codex 或 Claude Code".into()),
-    };
-    let root = base.join("skills/flowboard-tasks");
-    write_private(&root.join("SKILL.md"), include_bytes!("../../integrations/flowboard-tasks/SKILL.md"))?;
-    write_private(&root.join("agents/openai.yaml"), include_bytes!("../../integrations/flowboard-tasks/agents/openai.yaml"))?;
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let quoted = exe.to_string_lossy().replace('\'', "'\\''");
-    let script = format!("#!/bin/sh\nAPP='/Applications/FlowBoard.app/Contents/MacOS/flowboard'\nif [ ! -x \"$APP\" ]; then APP='{quoted}'; fi\nexec \"$APP\" --skill \"$@\"\n");
-    let launcher = root.join("scripts/flowboard");
-    write_private(&launcher, script.as_bytes())?;
-    use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(&launcher, fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
-    Ok(json!({"path": root.to_string_lossy()}))
-}
-
-#[tauri::command]
 fn export_backup(data: Value, filename: String) -> Result<String, String> {
     if !filename.starts_with("flowboard-export-") || filename.contains('/') { return Err("无效的备份名称".into()); }
     let path = dirs::download_dir().ok_or("无法找到下载目录")?.join(filename);
@@ -106,8 +86,13 @@ async fn run_skill(command: &str) -> Result<Value, String> {
             let mut actions: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
             if !actions.as_array().is_some_and(|a| !a.is_empty() && a.len() <= 20) { return Err("标准输入需要 1–20 项操作的 JSON 数组。".into()); }
             let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
+            let source = std::env::var("CODEX_THREAD_ID").ok().filter(|id| !id.is_empty() && id != "new" && id.chars().all(|ch|ch.is_ascii_alphanumeric() || ch=='-'))
+                .map(|id|json!({"url":format!("codex://threads/{id}")}));
             for (index, action) in actions.as_array_mut().unwrap().iter_mut().enumerate() {
                 if !action.is_object() { return Err("每项操作需要 action 和 args。".into()); }
+                if action["action"]=="upsert_task" && action["args"].is_object() && action["args"].get("cardId").is_none() && action["args"].get("sourceChat").is_none() {
+                    if let Some(ref source)=source {action["args"]["sourceChat"]=source.clone();}
+                }
                 if action.get("requestId").is_none() { action["requestId"] = json!(format!("{}-{}-{}", std::process::id(), stamp, index)); }
             }
             let payload = json!({"actions":actions});
@@ -121,6 +106,40 @@ async fn run_skill(command: &str) -> Result<Value, String> {
     if result["ok"] != true { return Err("共享空间尚未确认保存，操作已保留。".into()); }
     fs::remove_file(pending).map_err(|e| e.to_string())?;
     Ok(result)
+}
+
+fn valid_chat_url(value: &str) -> bool {
+    let Ok(url)=reqwest::Url::parse(value) else {return false;};
+    if !url.username().is_empty() || url.password().is_some() {return false;}
+    let segments:Vec<_>=url.path().trim_matches('/').split('/').collect();
+    let identifier=|value:&str| !value.is_empty() && value.chars().all(|c|c.is_ascii_alphanumeric() || c=='-');
+    match (url.scheme(),url.host_str()) {
+        ("codex",Some("threads"))=>segments.len()==1 && segments[0]!="new" && identifier(segments[0]),
+        ("https",Some("chatgpt.com"))=>segments.len()==2 && ["c","share"].contains(&segments[0]) && identifier(segments[1]),
+        ("https",Some("claude.ai"))=>segments.len()==2 && segments[0]=="chat" && identifier(segments[1]),
+        _=>false,
+    }
+}
+
+#[tauri::command]
+fn open_source_chat(url:String)->Result<(),String>{
+    if !valid_chat_url(&url) {return Err("来源聊天链接无效".into());}
+    let result=std::process::Command::new("/usr/bin/open").arg(url).status().map_err(|e|e.to_string())?;
+    if !result.success() {return Err("无法打开来源聊天，请确认已安装对应应用并使用原聊天的账号或设备。".into());}
+    Ok(())
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::valid_chat_url;
+    #[test]
+    fn accepts_chat_destinations_only(){
+        assert!(valid_chat_url("codex://threads/01a18277-7a1e-7b72-b4ea-392dd9afeaed"));
+        assert!(valid_chat_url("https://chatgpt.com/c/1234-abcd"));
+        assert!(!valid_chat_url("file:///tmp/task"));
+        assert!(!valid_chat_url("codex://threads/new"));
+        assert!(!valid_chat_url("https://example.com/c/1234"));
+    }
 }
 
 pub fn run() {
@@ -155,6 +174,6 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_process::init())
         .manage(state)
-        .invoke_handler(tauri::generate_handler![desktop_info, api_request, install_skill, export_backup])
+        .invoke_handler(tauri::generate_handler![desktop_info, api_request, skills::install_skill, skills::skill_status, open_source_chat, export_backup])
         .run(context).expect("Cannot start FlowBoard");
 }

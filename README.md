@@ -22,20 +22,17 @@ Cloudflare 仅提供同步接口，不托管网页。应用内置共享访问凭
 
 凭证供持有应用的协作者使用，不区分个人角色。请仅将安装包分享给协作者。
 
-## 源码构建
+## 构建与发布
 
-需要 Node.js 22、Rust 和 Xcode。
+正式安装包由 GitHub Actions 的 **macOS release** 工作流生成，同时发布到私有 Release 和应用内更新通道。推送与配置版本一致的 `v*` tag，或从 Actions 页面手动运行。工作流提供通用 DMG 与签名更新包，Cloudflare Worker 构建产物单独保存为 `cloudflare-worker` artifact。
 
-将 `src-tauri/connection.example.json` 复制到 `src-tauri/private/connection.json`，填写自己的 Worker 地址与应用访问凭证。
+PR 和 main 的检查使用不可访问生产环境的测试连接，不需要仓库 Secrets。正式发布使用 `FLOWBOARD_CONNECTION_JSON` 和 `TAURI_SIGNING_PRIVATE_KEY`，不会将私有连接或签名密钥提交到 Git。
 
-`workerUrl` 是共享看板接口，`updatesUrl` 是私有更新接口，`appToken` 是应用共享访问凭证。`src-tauri/private/` 不进入 Git。
+## 来源聊天与 skill 版本
 
-```bash
-npm ci
-npm run package:macos
-```
+Codex 创建任务时，应用内置命令自动读取 `CODEX_THREAD_ID`，记录 `codex://threads/<thread-id>` 来源。卡片与详情提供“打开来源聊天”；没有来源的旧卡片不显示入口。后续聊天修改任务时保留原来源。ChatGPT 和 Claude 的实际聊天链接也可以在新任务的 `sourceChat.url` 中明确提供。来源链接不会改变原聊天的账号、设备或访问权限。
 
-`package:macos` 生成 Apple Silicon / Intel 通用 macOS 应用，需要安装 `aarch64-apple-darwin` 和 `x86_64-apple-darwin` Rust targets。
+应用设置先读取已安装 skill 的版本和协议。版本兼容时直接使用，不重复安装；缺失时提供安装按钮；版本未知、不兼容或文件缺失时提示更新，由用户点击后写入。版本元数据保存在 skill 目录的 `.flowboard-skill.json`，不依赖内容哈希。
 
 ## Cloudflare
 

@@ -1,4 +1,5 @@
 import { generationOf, materialize } from '../src/services/crdt.ts';
+import { validChatSource } from '../src/chatSource.ts';
 import { planMove } from '../src/utils.ts';
 
 export class TaskError extends Error {
@@ -8,7 +9,7 @@ export class TaskError extends Error {
 export const taskTools = [
   { name: 'read_board', description: '读取共享看板、栏目、卡片和完成记录。在创建任务前读取现有卡片，更新同一张卡片。', inputSchema: { type: 'object', properties: {} } },
   { name: 'find_tasks', description: '按标题或内容搜索现有任务。', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
-  { name: 'upsert_task', description: '创建或补充一件已确定要做的事。更新使用 cardId；新建使用稳定的 sourceKey，重试沿用原值。', inputSchema: { type: 'object', properties: { baseVersion: {type:'integer',description:'读取到的卡片 version'}, baseValues: {type:'object',description:'本次修改字段在编辑前的值'}, cardId: { type: 'string' }, sourceKey: { type: 'string' }, title: { type: 'string' }, desc: { type: 'string' }, columnId: { type: ['string', 'null'] }, priority: { type: 'string', enum: ['low', 'medium', 'high'] }, dueDate: { type: ['string', 'null'], description: 'YYYY-MM-DD' }, tags: { type: 'array', items: { type: 'string' } } } } },
+  { name: 'upsert_task', description: '创建或补充一件已确定要做的事。更新使用 cardId；新建使用稳定的 sourceKey，重试沿用原值。', inputSchema: { type: 'object', properties: { baseVersion: {type:'integer',description:'读取到的卡片 version'}, baseValues: {type:'object',description:'本次修改字段在编辑前的值'}, sourceChat: {type:'object',properties:{url:{type:'string'}},required:['url'],description:'创建任务的来源聊天链接，创建后保留原来源'}, cardId: { type: 'string' }, sourceKey: { type: 'string' }, title: { type: 'string' }, desc: { type: 'string' }, columnId: { type: ['string', 'null'] }, priority: { type: 'string', enum: ['low', 'medium', 'high'] }, dueDate: { type: ['string', 'null'], description: 'YYYY-MM-DD' }, tags: { type: 'array', items: { type: 'string' } } } } },
   { name: 'complete_task', description: '完成或重新打开卡片，保留历史记录。重复完成不会重复记账。', inputSchema: { type: 'object', properties: { baseVersion: {type:'integer',description:'读取到的卡片 version'}, baseValues: {type:'object',description:'本次修改字段在编辑前的值'}, cardId: { type: 'string' }, completed: { type: 'boolean', default: true } }, required: ['cardId'] } },
   { name: 'move_task', description: '调整任务所在栏目及顺序。', inputSchema: { type: 'object', properties: { baseVersion: {type:'integer',description:'读取到的卡片 version'}, baseValues: {type:'object',description:'本次修改字段在编辑前的值'}, cardId: { type: 'string' }, columnId: { type: ['string', 'null'] }, index: { type: 'integer', minimum: 0 } }, required: ['cardId', 'columnId'] } },
 ];
@@ -70,6 +71,10 @@ export function planTaskAction(state, boardId, action, args = {}) {
   const id = existing?.id || `task:${args.sourceKey}`;
   if (state.cards[id]?.__deleted) throw new TaskError('这张卡片已删除，请确认是否需要建立新的任务。', 409);
   const details = {};
+  if (!existing && args.sourceChat !== undefined) {
+    if (!validChatSource(args.sourceChat)) throw new TaskError('来源聊天链接无效。');
+    details.sourceChat = {url:args.sourceChat.url};
+  }
   for (const key of ['title', 'desc', 'tags', 'color', 'priority', 'dueDate', 'checklist', 'columnId']) if (args[key] !== undefined) details[key] = args[key];
   if (details.title !== undefined && (typeof details.title !== 'string' || !details.title.trim())) throw new TaskError('标题不能为空。');
   if (details.title) details.title = details.title.trim();

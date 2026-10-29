@@ -19,9 +19,7 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - run: node scripts/prepare-ci.mjs
-        env:
-          FLOWBOARD_CONNECTION_JSON: ${{ secrets.FLOWBOARD_CONNECTION_JSON }}
+      - run: node scripts/prepare-ci.mjs check
       - run: npm run test:release
       - run: npm run build:desktop
-      - run: cargo check --locked --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --locked --lib --manifest-path src-tauri/Cargo.toml

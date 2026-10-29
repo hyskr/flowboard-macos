@@ -2,6 +2,7 @@ import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useFlowStore } from '../store/useFlowStore';
 import { CARD_COLORS } from '../constants';
 import { Icon, type IconName } from '../components/Icon';
+import { SourceChatLink } from '../components/SourceChatLink';
 import { PriorityIcon } from '../components/Card';
 import { cx, hue, uid } from '../utils';
 import { Modal } from './Modal';
@@ -168,6 +169,7 @@ export function CardModal({ card, defaultColId }: { card?: Card; defaultColId?: 
           </div>
 
           <aside className={s.props}>
+            <SourceChatLink source={card?.sourceChat} />
             <label style={{ display: 'flex', gap: 9, alignItems: 'center', paddingBottom: 14 }}><input type="checkbox" checked={completed} onChange={e => setCompleted(e.target.checked)} /> 标记完成</label>
             <Prop icon="circle" label="Status">
               <select className={cx(ui.input, s.control)} value={colId} onChange={(e) => setColId(e.target.value)} aria-label="Status">

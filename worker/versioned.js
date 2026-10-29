@@ -1,4 +1,5 @@
 import { applyOp, materialize, stripMeta } from '../src/services/crdt.ts';
+import { validChatSource } from '../src/chatSource.ts';
 import { planMove } from '../src/utils.ts';
 
 const fields = ['title', 'desc', 'tags', 'color', 'priority', 'dueDate', 'checklist', 'completedAt'];
@@ -19,6 +20,7 @@ export function acceptChanges(state, boardId, incoming, knownIds = new Set()) {
     const reject = (reason, names = []) => conflicts.push({ opId: op.opId, cardId: id, boardId, reason, fields: names, local: op.payload, remote: current && !current.__deleted ? stripMeta(current) : null });
     if (op.type !== 'card.create' && (!current || current.__deleted)) { reject('deleted'); continue; }
     if (op.type === 'card.create') {
+      if (op.payload.sourceChat != null && !validChatSource(op.payload.sourceChat)) {reject('invalid_source');continue;}
       if (current?.__deleted && !op.restore) { reject('deleted'); continue; }
       if (current && !current.__deleted) { accepted.push(op.opId); continue; }
       const card = { ...op.payload, version: (current?.version || 0) + 1, updatedAt: Date.now() };

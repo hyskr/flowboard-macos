@@ -28,6 +28,12 @@ jobs:
         env:
           FLOWBOARD_CONNECTION_JSON: ${{ secrets.FLOWBOARD_CONNECTION_JSON }}
       - run: npm run test:release
+      - run: npm run build:cloud
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-worker
+          path: dist/cloudflare/index.js
+          retention-days: 7
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,8 +42,8 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: FlowBoard v__VERSION__
-          releaseBody: Apple Silicon / Intel 通用 macOS 应用。解压后将 FlowBoard.app 移入应用程序。
+          releaseBody: 来源聊天跳转与 skill 版本检查。Apple Silicon / Intel 通用应用，将 FlowBoard.app 移入应用程序。
           releaseDraft: false
           uploadUpdaterJson: false
-          args: --target universal-apple-darwin --bundles app
+          args: --target universal-apple-darwin --bundles app,dmg
       - run: node scripts/publish-updates.mjs native

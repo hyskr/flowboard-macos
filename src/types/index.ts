@@ -19,6 +19,7 @@ export interface Column {
 }
 
 export interface Card {
+  sourceChat?: import('../chatSource').ChatSource;
   version?: number;
   id: ID;
   boardId: ID;

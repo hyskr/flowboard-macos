@@ -340,6 +340,7 @@ export const useFlowStore = create<FlowState>((set, get) => {
         priority: (data.priority) || 'medium',
         dueDate: data.dueDate || null,
         checklist: data.checklist ?? [],
+        sourceChat: data.sourceChat,
         completedAt: data.completedAt ?? null,
         updatedAt: Date.now(),
         order: colCards.length ? Math.max(...colCards.map((c) => c.order)) + 1 : 0,

@@ -1040,7 +1040,7 @@ dependencies = [
 
 [[package]]
 name = "flowboard"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "dirs 6.0.0",
  "reqwest 0.12.28",

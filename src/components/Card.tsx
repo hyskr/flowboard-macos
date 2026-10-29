@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useFlowStore } from '../store/useFlowStore';
 import { cx, formatDue, hue, uid } from '../utils';
 import { Icon } from './Icon';
+import { SourceChatLink } from './SourceChatLink';
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from './Menu';
 import type { Card, Priority } from '../types';
 import s from './Card.module.css';
@@ -34,6 +35,7 @@ export function CardView({ card, variant, compact = false }: { card: Card; varia
       <div className={s.title}>{card.title}</div>
       {!!card.completedAt && <span className={s.completedLabel}>完成于 {new Date(card.completedAt).toLocaleDateString('zh-CN')}</span>}
       {card.desc && <p className={s.desc}>{card.desc}</p>}
+      <SourceChatLink source={card.sourceChat} />
       <div className={s.meta}>
         <span className={cx(s.priorityLabel, card.priority === 'high' && s.urgent)}><PriorityIcon priority={card.priority} />{card.priority === 'high' && 'High'}</span>
         {due && (
