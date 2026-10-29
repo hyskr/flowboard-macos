@@ -44,3 +44,24 @@ fn import_is_repeatable_and_keeps_source(){
  assert_eq!(journal::import_file(&s,&path).unwrap(),(1,0));assert_eq!(journal::import_file(&s,&path).unwrap(),(0,1));assert_eq!(fs::read_to_string(path).unwrap(),body);
  let rows=s.execute(json!({"op":"journal.list"})).unwrap();assert_eq!(rows[0]["id"],"stable-id");assert_eq!(rows[0]["date"],"2026-10-15");fs::remove_dir_all(s.root.clone()).unwrap();
 }
+#[test]
+fn backup_restore_keeps_previous_copy_and_preserves_external_knowledge(){
+ let s=store();let external=s.root.join("external");fs::create_dir_all(&external).unwrap();fs::write(external.join("guide.md"),"# 操作手册\n\n完整步骤").unwrap();
+ s.execute(json!({"op":"settings.save","knowledgeDir":external.to_string_lossy()})).unwrap();
+ s.execute(json!({"op":"journal.save","id":"one","title":"工作","body":"已完成"})).unwrap();
+ let saved=s.execute(json!({"op":"backup.create"})).unwrap();
+ s.execute(json!({"op":"journal.save","id":"two","title":"后续","body":"继续工作"})).unwrap();
+ let restored=s.execute(json!({"op":"backup.restore","directory":saved["path"]})).unwrap();assert_eq!(restored["status"],"restored");
+ assert_eq!(s.execute(json!({"op":"journal.list"})).unwrap().as_array().unwrap().len(),1);
+ assert_eq!(fs::read_to_string(external.join("guide.md")).unwrap(),"# 操作手册\n\n完整步骤");assert_ne!(knowledge::root(&s).unwrap(),external);
+ fs::remove_dir_all(Path::new(text(&saved,"path"))).unwrap();fs::remove_dir_all(Path::new(text(&restored,"previousBackup"))).unwrap();fs::remove_dir_all(s.root.clone()).unwrap();
+}
+#[test]
+fn compact_only_prompts_for_new_work_and_ack_keeps_later_signals(){
+ let s=store();let key="compact-test";assert_eq!(hooks::handle(&s,&json!({"hook_event_name":"PreCompact","session_id":key})).unwrap(),json!({}));
+ let write=json!({"hook_event_name":"PostToolUse","session_id":key,"tool_name":"Write","tool_input":{"file_path":"new.rs"}});hooks::handle(&s,&write).unwrap();
+ assert_eq!(hooks::handle(&s,&json!({"hook_event_name":"PreCompact","session_id":key})).unwrap()["continue"],false);
+ let pending=hooks::status(&s,&json!({"sessionId":key})).unwrap()["pending"].clone();hooks::handle(&s,&write).unwrap();
+ hooks::ack(&s,&json!({"sessionId":key,"checkpointId":pending["id"]})).unwrap();let current=hooks::status(&s,&json!({"sessionId":key})).unwrap();assert_eq!(current["sequence"],2);assert_eq!(current["acknowledged"],1);
+ fs::remove_dir_all(s.root.clone()).unwrap();
+}

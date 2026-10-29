@@ -36,11 +36,10 @@ pub fn integration_status(target:String)->Result<Value,String>{
 }
 #[tauri::command]
 pub fn takeover(target:String)->Result<Value,String>{
- install_skill(target.clone(),Some(true))?;
  let base=home(&target)?;let command=hook_command(&target)?;let events=["PostToolUse","Stop","PreCompact","SessionStart","UserPromptSubmit"];
  if target=="codex" {
   let path=base.join("config.toml");backup(&path)?;let mut config=fs::read_to_string(&path).unwrap_or_default().parse::<toml_edit::DocumentMut>().map_err(|e|e.to_string())?;
-  config["plugins"]["ai-development-journal@personal"]["enabled"]=toml_edit::value(false);
+  if let Some(plugins)=config["plugins"].as_table_mut(){for (name,plugin) in plugins.iter_mut(){if name.starts_with("ai-development-journal@"){plugin["enabled"]=toml_edit::value(false);}}}
   for event in events {
    // Keep unrelated hooks and hook state untouched.
    let item=&mut config["hooks"][event];
@@ -57,6 +56,7 @@ pub fn takeover(target:String)->Result<Value,String>{
   super::write_private(&path,&serde_json::to_vec_pretty(&config).map_err(|e|e.to_string())?)?;
  }
  let old=base.join("skills/flowboard-tasks");if old.exists(){let archive=base.join("xingji-integration-backups").join(format!("flowboard-tasks-{}",chrono::Utc::now().format("%Y%m%d-%H%M%S")));fs::create_dir_all(archive.parent().unwrap()).map_err(|e|e.to_string())?;fs::rename(old,archive).map_err(|e|e.to_string())?;}
+ install_skill(target.clone(),Some(true))?;
  integration_status(target)
 }
 #[cfg(test)]

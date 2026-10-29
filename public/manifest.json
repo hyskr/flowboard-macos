@@ -1,7 +1,7 @@
 {
-  "name": "FlowBoard",
-  "short_name": "FlowBoard",
-  "description": "Fast Kanban for focused teams",
+  "name": "行记",
+  "short_name": "行记",
+  "description": "共享看板、个人开发记录与知识库",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",

@@ -56,7 +56,7 @@ pub fn save(s:&Store,r:&Value)->Result<Value>{
         let zone=s.setting("timezone")?.as_str().unwrap_or("Asia/Shanghai").parse::<chrono_tz::Tz>()?;
         let date=if let Some(date)=r["date"].as_str().filter(|d|!d.is_empty()){NaiveDate::parse_from_str(date,"%Y-%m-%d")?;date.to_string()}else{when.with_timezone(&zone).format("%Y-%m-%d").to_string()};
         value["date"]=json!(date);value["occurredAt"]=json!(occurred);value["createdAt"]=json!(saved);
-        for field in ["sessionId","source","placeholder"] {if let Some(v)=r.get(field){value[field]=v.clone();}}
+        for field in ["sessionId","source","placeholder","importPath"] {if let Some(v)=r.get(field){value[field]=v.clone();}}
     }
     for field in ["title","body","sourceChat","artifacts","taskLinks","project"] {if let Some(v)=r.get(field){value[field]=v.clone();}}
     if let Some(patches)=r["patches"].as_array(){value["body"]=json!(apply(text(&value,"body"),patches)?);}
@@ -89,8 +89,12 @@ pub fn import_file(s:&Store,path:&Path)->Result<(usize,usize)>{
         use chrono::TimeZone;
         let naive=chrono::NaiveDateTime::parse_from_str(&format!("{date} {}",&c[1]),"%Y-%m-%d %H:%M")?;
         let occurred=zone.from_local_datetime(&naive).earliest().map(|d|d.to_rfc3339()).unwrap_or_else(||now());
+        let metadata=Regex::new(r"<!-- (?:ai-development-journal|dev-notes)-meta:(.*?) -->")?.captures(content).and_then(|c|serde_json::from_str::<Value>(&c[1]).ok()).unwrap_or(json!({}));
+        let source=metadata["source"].as_str().unwrap_or(if content.contains("Claude Code"){"claude"}else if content.contains("Codex"){"codex"}else{"import"});
+        let session=metadata["session_id"].as_str().or(metadata["sessionId"].as_str()).map(str::to_owned).unwrap_or_else(||format!("import:{}:{}",source,&c[2]));
+        let chat=Regex::new(r"(?:codex://threads/[a-zA-Z0-9-]+|https://chatgpt.com/(?:c|share)/[a-zA-Z0-9-]+|https://claude.ai/chat/[a-zA-Z0-9-]+)")?.find(content).map(|m|m.as_str().to_string());
         let placeholder=content.contains("保存了可恢复记录")||content.contains("可恢复检查点");
-        let out=save(s,&json!({"id":key,"title":&c[3],"body":content,"date":date,"occurredAt":occurred,"sessionId":format!("import:{}",&c[4]),"source":"import","project":&c[2],"placeholder":placeholder}))?;
+        let out=save(s,&json!({"id":key,"title":&c[3],"body":content,"date":date,"occurredAt":occurred,"sessionId":session,"source":source,"sourceChat":chat,"importPath":path.to_string_lossy(),"project":&c[2],"placeholder":placeholder}))?;
         if out["status"]=="saved"{imported+=1;}
     }
     Ok((imported,skipped))

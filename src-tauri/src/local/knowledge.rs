@@ -1,5 +1,6 @@
 use super::*;
 use walkdir::WalkDir;
+use regex::Regex;
 pub fn root(s:&Store)->Result<PathBuf>{Ok(s.setting("knowledgeDir")?.as_str().map(PathBuf::from).unwrap_or_else(||s.root.join("knowledge")))}
 fn resolve(s:&Store,value:&str)->Result<PathBuf>{
     let root=root(s)?;fs::create_dir_all(&root)?;let root=root.canonicalize()?;let path=Path::new(value);
@@ -12,7 +13,7 @@ fn meta(body:&str,path:&str)->Value{
     let headings=body.lines().filter_map(|l|l.strip_prefix("## ")).map(|s|json!(s)).collect::<Vec<_>>();
     let topics=front["topics"].as_array().cloned().unwrap_or_else(||headings.iter().take(6).cloned().collect());
     let usage=front["usage"].as_str().or_else(||body.lines().find(|l|!l.trim().is_empty()&&!l.starts_with(['#','-','<','`'])&& !l.contains(": "))).unwrap_or("").to_string();
-    json!({"title":title,"topic":front["topic"].as_str().unwrap_or(path),"topics":topics,"usage":usage,"project":front["project"].as_str().unwrap_or(""),"headings":headings,"sourceJournalIds":front["sourceJournalIds"].as_array().cloned().unwrap_or_default()})
+    json!({"title":title,"topic":front["topic"].as_str().unwrap_or(path),"topics":topics,"usage":usage,"project":front["project"].as_str().unwrap_or(""),"headings":headings,"sourceJournalIds":front["sourceJournalIds"].as_array().cloned().unwrap_or_else(||Regex::new(r"\^j([a-zA-Z0-9-]+)").unwrap().captures_iter(body).map(|c|json!(&c[1])).collect())})
 }
 pub fn refresh(s:&Store)->Result<Value>{
     let root=root(s)?;fs::create_dir_all(&root)?;let mut present=std::collections::HashSet::new();let mut changed=0;
