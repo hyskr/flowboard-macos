@@ -98,3 +98,9 @@ npx wrangler secret put APP_TOKEN --config wrangler.jsonc
 ```
 
 服务同时托管网页版与同步 API。网页版首次输入服务地址和共享密钥，验证成功后保存在当前浏览器 localStorage，设置中可退出并清除。静态页面可公开访问，数据请求仍须密钥。macOS 的个人日记和知识库不上传到网页。`/api/connection/info` 验证密钥并在首次连接时创建 `shared` 看板和初始栏目；已有数据不变。App 中填写这个 Worker 地址与密钥即可。原服务的 `UPDATES_URL` 可保留供 1.3 及更早客户端升级，新版不使用它。
+
+## 自有入口转发
+
+`kanban.radam.cc` 通过独立服务器上的 Caddy 转发至 `flowboard-private.hyskr0620.workers.dev`。DNS 使用仅 DNS 模式；Worker 保留 workers.dev 源站地址，部署配置不再声明此自定义域。网页和 App 的服务地址使用 `https://kanban.radam.cc`，共享密钥验证及 D1 数据仍由 Worker 处理。
+
+Caddy 保留请求路径和共享密钥请求头，关闭访问日志，自动申请及续期证书。服务配置位于 `/etc/caddy/Caddyfile`，通过 `systemctl reload kanban-proxy` 应用配置，通过 `journalctl -u kanban-proxy` 查看服务状态。
