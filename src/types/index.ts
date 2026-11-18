@@ -68,6 +68,7 @@ export interface BoardCred {
 }
 
 export interface CrdtOp {
+  dependsOn?: string;
   baseVersion?: number;
   baseValues?: Record<string, unknown>;
   restore?: boolean;
@@ -161,9 +162,11 @@ export interface FlowState {
   updateColumn: (id: string, updates: Partial<Column>) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
   createCard: (boardId: string, columnId: string | null, data: Partial<Card>) => Promise<void>;
+  assignPlan: (boardId: string, cards: Card[], name: string) => Promise<void>;
   updateCard: (id: string, updates: Partial<Card>, base?: Card) => Promise<void>;
   toggleCardComplete: (id: string) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
+  movePlan: (boardId: string, name: string, columnId: string | null, beforeId?: string) => Promise<void>;
   moveCard: (cardId: string, targetColumnId: string | null, targetIndex: number) => Promise<void>;
   reorderColumns: (orderedIds: string[]) => Promise<void>;
   saveTheme: (id: string) => Promise<void>;

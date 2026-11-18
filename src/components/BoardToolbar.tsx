@@ -1,4 +1,5 @@
 import { useFlowStore } from '../store/useFlowStore';
+import { isReturnTag, isScheduleTag } from '../taskDates';
 import { DEFAULT_FILTERS, cx, hasFilters, matchesCard } from '../utils';
 import { Icon } from './Icon';
 import type { CardFilters } from '../types';
@@ -17,7 +18,7 @@ export function BoardToolbar({ hidden = false }: { hidden?: boolean }) {
   if (!boardId) return null;
   const cards = allCards.filter((c) => c.boardId === boardId);
   const columns = allColumns.filter((c) => c.boardId === boardId).sort((a, b) => a.order - b.order);
-  const tags = [...new Set(cards.flatMap((c) => c.tags))].sort((a, b) => a.localeCompare(b));
+  const tags = [...new Set(cards.flatMap(c => c.tags.filter(tag => !isReturnTag(tag) && !isScheduleTag(tag))))].sort((a, b) => a.localeCompare(b));
   const filtered = hasFilters(filters) || !!query.trim();
   const count = cards.filter((c) => matchesCard(c, query, filters)).length;
   const countDue = (due: CardFilters['due']) => cards.filter((c) => matchesCard(c, '', { ...DEFAULT_FILTERS, due })).length;

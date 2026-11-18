@@ -7,12 +7,14 @@ import { cx } from '../utils';
 import { Icon } from './Icon';
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from './Menu';
 import { InlineInput } from './InlineInput';
+import { PlanCard } from './PlanSummary';
+import type { Plan } from '../plans';
 import { CardView, SortableCard } from './Card';
 import type { Card, Column } from '../types';
 import s from './Column.module.css';
 import ui from './ui.module.css';
 
-export function SortableColumn({ col, cards, totalCount }: { col: Column; cards: Card[]; totalCount: number }) {
+export function SortableColumn({ col, cards, totalCount, listCount, plans }: { col: Column; cards: Card[]; totalCount: number; listCount: number; plans: Map<string, Plan> }) {
   const { openModal, updateColumn, deleteColumn, toast } = useFlowStore.getState();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: col.id,
@@ -52,7 +54,7 @@ export function SortableColumn({ col, cards, totalCount }: { col: Column; cards:
           ) : (
             <h3 className={s.name} onDoubleClick={() => setRenaming(true)} title="Double-click to rename">{col.name}</h3>
           )}
-          <span className={ui.count} title={`${totalCount} cards in this column`}>{cards.length === totalCount ? cards.length : `${cards.length}/${totalCount}`}</span>
+          <span className={ui.count} title={`${totalCount} cards in this column`}>{cards.length === listCount ? cards.length : `${cards.length}/${listCount}`}</span>
         </div>
         <button className={cx(ui.iconBtn, ui.small, s.action, menu && s.actionActive)} onClick={(e) => {setPoint(undefined);setMenu(menu ? null : e.currentTarget);}} aria-label={`Options for ${col.name}`} aria-haspopup="menu">
           <Icon name="more" size={15} />
@@ -61,9 +63,9 @@ export function SortableColumn({ col, cards, totalCount }: { col: Column; cards:
 
       <div className={s.list}>
         <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-          {cards.map((card) => <SortableCard key={card.id} card={card} />)}
+          {cards.map((card) => <SortableCard key={card.id} card={card} plan={plans.get(card.id)} />)}
         </SortableContext>
-        {cards.length === 0 && !adding && <div className={s.empty}><Icon name={totalCount ? 'filter' : 'plus'} size={18} /><span>{totalCount ? 'No matching cards' : 'No cards yet'}</span><small>{totalCount ? 'Adjust your filters to see more.' : 'Drag a card here or add one below.'}</small></div>}
+        {cards.length === 0 && !adding && <div className={s.empty}><Icon name={listCount ? 'filter' : 'plus'} size={18} /><span>{listCount ? 'No matching cards' : 'No cards yet'}</span><small>{listCount ? 'Adjust your filters to see more.' : 'Drag a card here or add one below.'}</small></div>}
         {adding && <QuickAdd boardId={col.boardId} columnId={col.id} onDone={() => setAdding(false)} />}
       </div>
 
@@ -77,6 +79,7 @@ export function SortableColumn({ col, cards, totalCount }: { col: Column; cards:
         <Menu anchor={menu} point={point} onClose={() => setMenu(null)}>
           <MenuItem icon="pencil" onClick={() => { setMenu(null); setRenaming(true); }}>Rename</MenuItem>
           <MenuItem icon="plus" onClick={() => { setMenu(null); setAdding(true); }}>Add card</MenuItem>
+          {totalCount > 0 && <MenuItem icon="checklist" onClick={() => { setMenu(null); openModal('groupPlan', { columnId: col.id }); }}>批量归入计划…</MenuItem>}
           <MenuSeparator />
           <MenuLabel>Color</MenuLabel>
           <div className={cx(ui.swatches, s.menuSwatches)}>
@@ -136,7 +139,7 @@ function QuickAdd({ boardId, columnId, onDone }: { boardId: string; columnId: st
   );
 }
 
-export function ColumnOverlay({ col, cards }: { col: Column; cards: Card[] }) {
+export function ColumnOverlay({ col, cards, plans, columns }: { col: Column; cards: Card[]; plans: Map<string, Plan>; columns: Column[] }) {
   return (
     <section className={cx(s.column, s.overlay)}>
       <header className={s.header}>
@@ -147,7 +150,10 @@ export function ColumnOverlay({ col, cards }: { col: Column; cards: Card[] }) {
         </div>
       </header>
       <div className={s.list}>
-        {cards.map((c) => <CardView key={c.id} card={c} />)}
+        {cards.map(card => {
+          const plan = plans.get(card.id);
+          return plan ? <PlanCard key={card.id} plan={plan} columns={columns} /> : <CardView key={card.id} card={card} />;
+        })}
       </div>
     </section>
   );

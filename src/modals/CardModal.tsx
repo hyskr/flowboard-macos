@@ -3,6 +3,9 @@ import { useFlowStore } from '../store/useFlowStore';
 import { CARD_COLORS } from '../constants';
 import { Icon, type IconName } from '../components/Icon';
 import { SourceChatLink } from '../components/SourceChatLink';
+import { isPlanTag, planName, withPlan } from '../plans';
+import { calendarStart, dateKey, isReturnTag, isScheduleTag, withCalendarStart } from '../taskDates';
+import { PlanNameInput } from '../components/PlanNameInput';
 import { PriorityIcon } from '../components/Card';
 import { cx, hue, uid } from '../utils';
 import { Modal } from './Modal';
@@ -72,7 +75,9 @@ export function CardModal({ card, defaultColId }: { card?: Card; defaultColId?: 
   const [colId, setColId] = useState(card?.columnId ?? defaultColId ?? '');
   const [priority, setPriority] = useState<Priority>(card?.priority ?? 'medium');
   const [dueDate, setDueDate] = useState(card?.dueDate ?? '');
-  const [tags, setTags] = useState<string[]>(card?.tags ?? []);
+  const [start, setStart] = useState(calendarStart(card?.tags ?? []));
+  const [tags, setTags] = useState<string[]>((card?.tags ?? []).filter(tag => !isPlanTag(tag) && !isReturnTag(tag) && !isScheduleTag(tag)));
+  const [plan, setPlan] = useState(planName(card?.tags ?? []));
   const [color, setColor] = useState(card?.color ?? 'transparent');
   const [checklist, setChecklist] = useState<Card['checklist']>(card?.checklist ?? []);
   const [task, setTask] = useState('');
@@ -93,11 +98,16 @@ export function CardModal({ card, defaultColId }: { card?: Card; defaultColId?: 
   const save = async () => {
     if (saving.current) return;
     if (!title.trim()) { setError('Give this card a title before saving.'); titleRef.current?.focus(); return; }
+    const effectiveStart = dueDate && start > dueDate ? dueDate : start;
     const data: Partial<Card> = {
       completedAt: completed ? card?.completedAt || Date.now() : null,
-      title: title.trim(), desc: desc.trim(), columnId: colId || null, priority, dueDate: dueDate || null, tags, color,
+      title: title.trim(), desc: desc.trim(), columnId: colId || null, priority, dueDate: dueDate || null, color,
       checklist: (task.trim() ? [...tasks, { id: uid(), title: task.trim(), done: false }] : tasks).map((t) => ({ ...t, title: t.title.trim() })).filter((t) => t.title),
     };
+    if (!card || effectiveStart !== calendarStart(card.tags) || plan.trim() !== planName(card.tags) ||
+        JSON.stringify(tags) !== JSON.stringify(card.tags.filter(tag => !isPlanTag(tag) && !isReturnTag(tag) && !isScheduleTag(tag)))) {
+      data.tags = withCalendarStart(withPlan([...tags, ...(card?.tags ?? []).filter(isReturnTag)], plan), effectiveStart);
+    }
     saving.current = true;
     const currentModal = useFlowStore.getState().modal;
     setBusy(true);
@@ -187,7 +197,7 @@ export function CardModal({ card, defaultColId }: { card?: Card; defaultColId?: 
                 ))}
               </div>
             </Prop>
-            <Prop icon="calendar" label="Due date">
+            <Prop icon="clock" label="截止日期">
               <div className={s.dateRow}>
                 <input className={cx(ui.input, s.control)} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} aria-label="Due date" />
                 {dueDate && (
@@ -196,6 +206,24 @@ export function CardModal({ card, defaultColId }: { card?: Card; defaultColId?: 
                   </button>
                 )}
               </div>
+            </Prop>
+            <div className={s.calendarSetting}>
+              <label className={s.calendarToggle}>
+                <Icon name="calendar" size={15} /><span>加入日历</span>
+                <input type="checkbox" role="switch" checked={!completed && !!start} disabled={completed}
+                  onChange={event => {
+                    const today = dateKey(new Date());
+                    setStart(event.target.checked ? (dueDate && dueDate < today ? dueDate : today) : '');
+                  }} />
+              </label>
+              {!completed && start ? <label className={s.calendarStart}>
+                <span>开始日期</span>
+                <input className={cx(ui.input, s.control)} type="date" aria-label="日历开始日期"
+                  value={dueDate && start > dueDate ? dueDate : start} max={dueDate || undefined} onChange={e => setStart(e.target.value)} />
+              </label> : <p className={s.calendarHint}>{completed ? '已完成，日历中隐藏。' : dueDate ? '仅在截止日显示' : '加入后在所选日期显示'}</p>}
+            </div>
+            <Prop icon="checklist" label="所属计划">
+              <PlanNameInput boardId={boardId} value={plan} onChange={setPlan} />
             </Prop>
             <Prop icon="tag" label="Tags">
               <TagInput tags={tags} onChange={setTags} />

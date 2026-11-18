@@ -1,4 +1,5 @@
 const PATHS = {
+  flag: <><path d="M5 21V4m0 0c4-4 8 4 14 0v10c-6 4-10-4-14 0" /></>,
   filter: <path d="M4 7h16M7 12h10M10 17h4" />,
   checklist: <><path d="m3 6 1.5 1.5L7 5M10 6h11m-18 6 1.5 1.5L7 11M10 12h11m-18 6 1.5 1.5L7 17M10 18h11" /></>,
   copy: <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>,

@@ -16,9 +16,13 @@ async function run() {
   await sync.saveBoardCreds(boardId,keyHash,'共享','');
   await db.reconcile(boardId,seed.state,[],[]);
   const local=op('card.update',{id:'draft-card',desc:'本地草稿'},1,{desc:'原文'});
-  await db.updateSyncState(boardId,emptyState(),state=>{applyOp(state,local);return [local];});
+  const dependentMove = op('card.move',{id:'draft-card',columnId:null,targetIndex:0});
+  dependentMove.dependsOn = local.opId;
+  dependentMove.ts = local.ts + 1;
+  await db.updateSyncState(boardId,emptyState(),state=>{applyOp(state,local);applyOp(state,dependentMove);return [local,dependentMove];});
   await send([op('card.update',{id:'draft-card',desc:'对方修改'},1,{desc:'原文'})]);
   const reply=await sync.synchronize(boardId);
+  if(Object.values(reply.state.activity).some(event=>event.type==='moved')) throw new Error('Rejected edit moved the card');
   if(reply.conflicts[0]?.local.desc!=='本地草稿') throw new Error('Conflict draft missing');
   if(reply.state.cards['draft-card'].desc!=='对方修改') throw new Error('Cloud content was overwritten');
   if((await db.getSyncOutbox(boardId)).ops.length) throw new Error('Rejected operation would be retried automatically');
@@ -30,6 +34,13 @@ async function run() {
   const merged=await sync.synchronize(boardId);
   if(merged.state.cards['draft-card'].desc!=='对方修改'||merged.state.cards['draft-card'].dueDate!=='2026-11-06') throw new Error('Independent field update was lost');
   if(await sync.hasRemoteChanges(boardId)) throw new Error('Unchanged board should not require a full read');
-  return ['Real IndexedDB preserves conflict drafts across reopening','Rejected writes leave the retry outbox and retain the local draft','A different field merges without overwriting cloud text','Unchanged server revision skips full-board synchronization'];
+  // Completing and undoing before a sync must survive the server assigning its own timestamp.
+  const finished = op('card.update',{id:'draft-card',completedAt:123},merged.state.cards['draft-card'].version as number,{completedAt:null});
+  const undo = op('card.update',{id:'draft-card',completedAt:null},finished.baseVersion,{completedAt:123});
+  undo.ts = finished.ts + 1;
+  await db.updateSyncState(boardId,emptyState(),state=>{applyOp(state,finished);applyOp(state,undo);return [finished,undo];});
+  const undone = await sync.synchronize(boardId);
+  if(undone.state.cards['draft-card'].completedAt || undone.conflicts.some(c=>c.fields.includes('completedAt'))) throw new Error('Queued undo failed after reconciliation');
+  return ['Queued completion and undo survive server timestamps','Real IndexedDB preserves conflict drafts across reopening','Rejected writes leave the retry outbox and retain the local draft','A different field merges without overwriting cloud text','Unchanged server revision skips full-board synchronization'];
 }
 run().then(results=>fetch('/sync-result',{method:'POST',body:JSON.stringify({ok:true,results})})).catch(error=>fetch('/sync-result',{method:'POST',body:JSON.stringify({ok:false,error:String(error)})}));

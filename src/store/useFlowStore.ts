@@ -2,6 +2,8 @@ import { isDesktop, desktopInfo } from '../desktop';
 import { invoke } from '@tauri-apps/api/core';
 import { create } from 'zustand';
 import { WORKER_URL, COL_COLORS, resolveTheme } from '../constants.ts';
+import { collectPlans, planMemberMoves, withPlan } from '../plans.ts';
+import { doneColumn, isReturnTag, previousColumn, rememberColumn } from '../taskDates.ts';
 import { DEFAULT_FILTERS, uid } from '../utils.ts';
 import { DatabaseService } from '../services/DatabaseService.ts';
 import { SyncService } from '../services/SyncService.ts';
@@ -11,6 +13,8 @@ import { applyOp, emptyState, generationOf, materialize, mergeStates, stripMeta,
 import type {
   FlowState, Board, Column, Card, ActivityEvent, CrdtOp, View,
 } from '../types';
+
+type Change = Pick<CrdtOp, 'type' | 'payload' | 'baseVersion' | 'baseValues' | 'restore' | 'dependsOn'> & { opId?: string };
 
 const db = new DatabaseService();
 const sync = new SyncService(db, WORKER_URL, (ok) => useFlowStore.setState({ workerStatus: ok }));
@@ -78,7 +82,7 @@ export const useFlowStore = create<FlowState>((set, get) => {
     writes = work.catch(() => {});
     return work;
   };
-  const commit = (boardId: string, changes: { type: string; payload: Record<string, unknown>; baseVersion?: number; baseValues?: Record<string, unknown>; restore?: boolean }[]) => persist(boardId, state => {
+  const commit = (boardId: string, changes: Change[]) => persist(boardId, state => {
     let after = 0;
     for (const map of Object.values(state)) for (const row of Object.values(map)) after = Math.max(after, row.__ts ?? 0);
     return changes.map(({ type, payload, ...preconditions }) => {
@@ -94,6 +98,16 @@ export const useFlowStore = create<FlowState>((set, get) => {
     const { workerUrl, syncInterval } = get();
     get().saveSettings({ workerUrl, syncInterval }).catch(() => {});
   }));
+
+  const archiveFor = (boardId: string, changes: Change[]) => {
+    const columns = get().columns.filter(col => col.boardId === boardId);
+    const existing = doneColumn(columns);
+    if (existing) return existing.id;
+    const id = 'done-' + boardId;
+    const column = { id: columns.some(col => col.id === id) ? uid() : id, boardId, name: '已完成', order: columns.length, color: COL_COLORS[2] };
+    changes.push({ type: 'column.create', payload: column });
+    return column.id;
+  };
 
   const armSyncTimer = (seconds:number) => sync.startTimer(seconds, async () => {
     if (document.visibilityState !== 'visible') return;
@@ -339,6 +353,12 @@ export const useFlowStore = create<FlowState>((set, get) => {
     },
 
     createCard: async (boardId, columnId, data) => {
+      const changes: Change[] = [];
+      let tags = data.tags ?? [];
+      if (data.completedAt) {
+        tags = rememberColumn(tags, columnId);
+        columnId = archiveFor(boardId, changes);
+      }
       const colCards = get().cards.filter((c) => c.columnId === columnId && c.boardId === boardId);
       const card: Card = {
         id: uid(),
@@ -346,7 +366,7 @@ export const useFlowStore = create<FlowState>((set, get) => {
         columnId,
         title: data.title || 'New Card',
         desc: data.desc || '',
-        tags: data.tags || [],
+        tags,
         color: data.color || 'transparent',
         priority: (data.priority) || 'medium',
         dueDate: data.dueDate || null,
@@ -357,8 +377,18 @@ export const useFlowStore = create<FlowState>((set, get) => {
         order: colCards.length ? Math.max(...colCards.map((c) => c.order)) + 1 : 0,
         createdAt: Date.now(),
       };
-      await commit(boardId, [{ type: 'card.create', payload: { ...card } }]);
+      await commit(boardId, [...changes, { type: 'card.create', payload: { ...card } }]);
 
+    },
+
+    assignPlan: async (boardId, cards, name) => {
+      const changes = cards.flatMap(card => {
+        const tags = withPlan(card.tags, name);
+        if (JSON.stringify(tags) === JSON.stringify(card.tags)) return [];
+        return [{ type: 'card.update', payload: { id: card.id, boardId, tags },
+          baseVersion: card.version ?? 0, baseValues: { tags: card.tags } }];
+      });
+      if (changes.length) await commit(boardId, changes);
     },
 
     updateCard: async (id, updates, base) => {
@@ -367,9 +397,37 @@ export const useFlowStore = create<FlowState>((set, get) => {
       const original = base ?? current;
       const details = Object.fromEntries(Object.entries(updates).filter(([key, value]) => JSON.stringify(value ?? null) !== JSON.stringify(original[key as keyof Card] ?? null)));
       const { columnId, ...patch } = details;
-      if (columnId !== undefined) await get().moveCard(id, columnId as string | null, get().cards.filter(c => c.columnId === columnId).length);
-      if (!Object.keys(patch).length) return;
-      await commit(current.boardId, [{ type:'card.update', payload:{id,boardId:current.boardId,...patch}, baseVersion:original.version ?? 0, baseValues:Object.fromEntries(Object.keys(patch).map(key => [key, original[key as keyof Card] ?? null])) }]);
+      const boardId = current.boardId;
+      const changes: Change[] = [];
+      let target = columnId as string | null | undefined;
+      const baseValues: Record<string, unknown> = Object.fromEntries(Object.keys(patch).map(key => [key, original[key as keyof Card] ?? null]));
+      if (Object.hasOwn(patch, 'completedAt') && !!patch.completedAt !== !!current.completedAt) {
+        const tags = (patch.tags ?? current.tags) as string[];
+        baseValues.tags ??= current.tags;
+        if (patch.completedAt) {
+          const source = target === undefined ? current.columnId : target;
+          target = archiveFor(boardId, changes);
+          patch.tags = rememberColumn(tags, source);
+        } else {
+          const columns = get().columns.filter(col => col.boardId === boardId);
+          const archive = doneColumn(columns);
+          const saved = previousColumn(current.tags);
+          if (target === undefined && (current.columnId === archive?.id || saved !== undefined)) {
+            const lastMove = get().activity.find(ev => ev.cardId === id && ev.type === 'moved' && ev.toColId === current.columnId && ev.fromColId !== current.columnId);
+            const source = saved !== undefined ? saved || null : lastMove ? lastMove.fromColId : columns.find(col => col.name === '待办')?.id;
+            target = source && columns.some(col => col.id === source) ? source : null;
+          }
+          patch.tags = tags.filter(tag => !isReturnTag(tag));
+        }
+      }
+      const updateId = uid();
+      if (Object.keys(patch).length) changes.push({ opId: updateId, type: 'card.update', payload: { id, boardId, ...patch }, baseVersion: original.version ?? 0, baseValues });
+      if (target !== undefined && target !== current.columnId) {
+        const targetIndex = get().cards.filter(card => card.boardId === boardId && card.columnId === target).length;
+        changes.push({ type: 'card.move', payload: { id, boardId, columnId: target, targetIndex },
+          ...(Object.hasOwn(patch, 'completedAt') ? { dependsOn: updateId } : {}) });
+      }
+      if (changes.length) await commit(boardId, changes);
     },
 
     resolveConflict: async (opId, choice) => {
@@ -389,7 +447,13 @@ export const useFlowStore = create<FlowState>((set, get) => {
 
     toggleCardComplete: async (id) => {
       const card = get().cards.find(c => c.id === id);
-      if (card) await get().updateCard(id, { completedAt: card.completedAt ? null : Date.now() });
+      if (!card) return;
+      const completedAt = card.completedAt ? null : Date.now();
+      await get().updateCard(id, { completedAt }, card);
+      if (completedAt) get().toast(`已完成「${card.title}」`, '✓', { label: '撤销', run: async () => {
+        const latest = get().cards.find(c => c.id === id);
+        if (latest?.completedAt) await get().updateCard(id, { completedAt: null }, latest);
+      } });
     },
 
     deleteCard: async (id) => {
@@ -406,6 +470,18 @@ export const useFlowStore = create<FlowState>((set, get) => {
         await commit(card.boardId, [{type:'card.create',payload:{...restored,order:position},restore:true}]);
         get().toast('Card restored');
       } });
+    },
+
+    movePlan: async (boardId, name, columnId, beforeId) => {
+      const state = get();
+      if (columnId !== null && !state.columns.some(col => col.id === columnId && col.boardId === boardId)) {
+        throw new Error('目标栏目已删除');
+      }
+      const cards = state.cards.filter(card => card.boardId === boardId);
+      const plan = collectPlans(cards).find(plan => plan.name === name);
+      if (!plan) throw new Error('计划已移除');
+      const moves = planMemberMoves(cards, plan, columnId, beforeId);
+      if (moves.length) await commit(boardId, moves.map(move => ({ type: 'card.move', payload: { boardId, ...move } })));
     },
 
     moveCard: async (cardId, targetColumnId, targetIndex) => {

@@ -9,6 +9,9 @@ import { useFlowStore } from '../store/useFlowStore';
 import { SortableColumn, ColumnOverlay } from '../components/Column';
 import { CardView } from '../components/Card';
 import { Backlog, BACKLOG_ID } from '../components/Backlog';
+import { PlanCard } from '../components/PlanSummary';
+import { doneColumn } from '../taskDates';
+import { collectPlans, planName, type Plan } from '../plans';
 import { InlineInput } from '../components/InlineInput';
 import { Icon, Logo } from '../components/Icon';
 import { cx, hasFilters, matchesCard } from '../utils';
@@ -30,7 +33,7 @@ export function BoardView() {
   const backlogOpen = useFlowStore((st) => st.backlogOpen);
   const query = useFlowStore((st) => st.searchQuery).trim().toLowerCase();
   const filters = useFlowStore((st) => st.filters);
-  const { moveCard, reorderColumns, toggleBacklog, openModal } = useFlowStore.getState();
+  const { moveCard, movePlan, reorderColumns, toggleBacklog, openModal } = useFlowStore.getState();
 
   const columns = useMemo(
     () => allColumns.filter((c) => c.boardId === activeBoardId).sort((a, b) => a.order - b.order),
@@ -39,14 +42,33 @@ export function BoardView() {
   const columnIds = useMemo(() => new Set<UniqueIdentifier>(columns.map((c) => c.id)), [columns]);
   const cardsById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
 
+  const doing = columns.find(col => col.id === 'column-1') ?? columns.find(col => col.name === '进行中');
+  const boardCards = useMemo(() => cards.filter(card => card.boardId === activeBoardId), [cards, activeBoardId]);
+  const archiveId = doneColumn(columns)?.id;
+  const filtered = !!query || hasFilters(filters);
+  const plans = useMemo(() => {
+    const rows = new Map<string, Plan>();
+    if (!filtered) for (const plan of collectPlans(boardCards, doing?.id)) {
+      rows.set((plan.current ?? plan.members.find(card => card.columnId === archiveId) ?? plan.members[0]).id, plan);
+    }
+    return rows;
+  }, [boardCards, doing?.id, filtered, archiveId]);
+  const listCards = useMemo(() => {
+    if (filtered) return boardCards;
+    const ongoing = new Set([...plans.values()].filter(plan => plan.current).map(plan => plan.name));
+    return boardCards.filter(card => {
+      const name = planName(card.tags);
+      return !name || plans.has(card.id) || (!!card.completedAt && card.columnId === archiveId && ongoing.has(name));
+    });
+  }, [filtered, boardCards, plans, archiveId]);
   const baseItems = useMemo(() => {
     const items: Items = { [BACKLOG_ID]: [] };
     for (const col of columns) items[col.id] = [];
-    for (const c of cards.filter((c) => c.boardId === activeBoardId && matchesCard(c, query, filters)).sort(byOrder)) {
+    for (const c of listCards.filter((c) => matchesCard(c, query, filters)).sort(byOrder)) {
       items[c.columnId ?? BACKLOG_ID]?.push(c.id);
     }
     return items;
-  }, [cards, columns, activeBoardId, query, filters]);
+  }, [listCards, columns, query, filters]);
 
   // Keep a local layout during dragging and saving so cards never flash back to their old position.
   const [dragItems, setDragItems] = useState<Items | null>(null);
@@ -134,6 +156,8 @@ export function BoardView() {
     const columnId = container === BACKLOG_ID ? null : container;
     // The visible list may be filtered by search, so anchor on the next visible card to find the real index.
     const nextId = list[list.indexOf(id) + 1];
+    const plan = plans.get(id);
+    if (plan) return movePlan(card.boardId, plan.name, columnId, nextId);
     const siblings = cards.filter((c) => c.boardId === card.boardId && c.columnId === columnId && c.id !== id).sort(byOrder);
     const found = nextId ? siblings.findIndex((c) => c.id === nextId) : -1;
     const index = found >= 0 ? found : siblings.length;
@@ -158,7 +182,9 @@ export function BoardView() {
           const to = list.indexOf(String(over.id));
           if (to >= 0 && from !== to) list = arrayMove(list, from, to);
           setDragItems({ ...dragItems, [container]: list });
-          await commitCard(String(a.id), container, list);
+          if (baseItems[container]?.indexOf(String(a.id)) !== list.indexOf(String(a.id))) {
+            await commitCard(String(a.id), container, list);
+          }
         }
       }
       return false;
@@ -205,14 +231,17 @@ export function BoardView() {
           {(hasFilters(filters) || query) && Object.values(baseItems).every((list) => !list.length) && <div className={s.noResults}><Icon name="search" size={16} /><span>No cards match these filters.</span><button className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => useFlowStore.getState().clearFilters()}>Clear filters</button></div>}
           <div className={s.columns}>
           <SortableContext items={columns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
-              {columns.map((col) => <SortableColumn key={col.id} col={col} cards={cardsIn(col.id)} totalCount={cards.filter((c) => c.boardId === activeBoardId && c.columnId === col.id).length} />)}
+              {columns.map(col => <SortableColumn key={col.id} col={col} cards={cardsIn(col.id)} plans={plans}
+                totalCount={boardCards.filter(c => c.columnId === col.id).length}
+                listCount={listCards.filter(c => c.columnId === col.id).length} />)}
           </SortableContext>
           <AddColumn boardId={activeBoardId} />
         </div>
-          <Backlog cards={cardsIn(BACKLOG_ID)} totalCount={cards.filter((c) => c.boardId === activeBoardId && c.columnId === null).length} />
+          <Backlog cards={cardsIn(BACKLOG_ID)} plans={plans} totalCount={listCards.filter(c => c.columnId === null).length} />
       </div>
       <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}>
-        {activeCol ? <ColumnOverlay col={activeCol} cards={cardsIn(activeCol.id)} />
+        {activeCol ? <ColumnOverlay col={activeCol} cards={cardsIn(activeCol.id)} plans={plans} columns={columns} />
+            : activeCard && plans.has(activeCard.id) ? <PlanCard plan={plans.get(activeCard.id)!} columns={columns} variant="overlay" />
             : activeCard ? <CardView card={activeCard} variant="overlay" compact={activeCard.columnId === null} />
           : null}
       </DragOverlay>

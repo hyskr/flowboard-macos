@@ -158,3 +158,17 @@
 .cardDone .desc { opacity: .6; }
 .completedLabel { color: var(--success); font-size: 11px; }
 :global([data-density='compact']) .completeToggle { top: 11px; }
+
+.plan { flex-shrink: 0; cursor: default; }
+.planHead { cursor: grab; border-radius: var(--radius-sm); padding-right: 19px; display: flex; gap: 8px; align-items: baseline; }
+.planHead .title { padding: 0; min-width: 0; font-weight: 600; }
+.planTask { display: flex; align-items: flex-start; gap: 8px; }
+.planTask input { flex-shrink: 0; width: 16px; height: 16px; margin: 3px 0; accent-color: var(--accent); }
+.planTitle, .planLink { cursor: pointer; border: 0; background: transparent; text-align: left; }
+.planTitle { padding: 1px 0; font-size: 13px; line-height: 1.5; color: var(--fg); overflow-wrap: anywhere; }
+.planTitle:hover { text-decoration: underline; }
+.planMeta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--fg-muted); font-size: 11.5px; }
+.planLink { display: flex; justify-content: space-between; align-items: center; padding: 8px 0 0; border-top: 1px solid var(--line); color: var(--fg-muted); font-size: 12px; }
+.planLink:hover { color: var(--accent); }
+
+.planHead:focus-visible { outline: 2px solid var(--accent-ring); }

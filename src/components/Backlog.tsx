@@ -4,13 +4,14 @@ import { useFlowStore } from '../store/useFlowStore';
 import { cx } from '../utils';
 import { Icon } from './Icon';
 import { SortableCard } from './Card';
+import type { Plan } from '../plans';
 import type { Card } from '../types';
 import s from './Backlog.module.css';
 import ui from './ui.module.css';
 
 export const BACKLOG_ID = 'backlog';
 
-export function Backlog({ cards, totalCount }: { cards: Card[]; totalCount: number }) {
+export function Backlog({ cards, totalCount, plans }: { cards: Card[]; totalCount: number; plans: Map<string, Plan> }) {
   const open = useFlowStore((st) => st.backlogOpen);
   const { toggleBacklog, openModal } = useFlowStore.getState();
   const { setNodeRef, isOver } = useDroppable({ id: BACKLOG_ID, data: { type: 'Container' } });
@@ -32,7 +33,7 @@ export function Backlog({ cards, totalCount }: { cards: Card[]; totalCount: numb
         <div className={s.inner}>
           <div className={s.track}>
             <SortableContext items={cards.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
-              {cards.map((card) => <SortableCard key={card.id} card={card} className={s.item} compact />)}
+              {cards.map((card) => <SortableCard key={card.id} card={card} plan={plans.get(card.id)} className={s.item} compact />)}
             </SortableContext>
             {cards.length === 0 && <div className={s.empty}>{totalCount ? 'No matching backlog cards. Try adjusting your filters.' : 'Cards that aren’t in a column yet. Drag one here to set it aside.'}</div>}
           </div>

@@ -2,6 +2,8 @@
 // Run: node src/utils.check.ts
 import assert from 'node:assert/strict';
 import { DEFAULT_FILTERS, formatDue, hasFilters, matchesCard, planMove } from './utils.ts';
+import { calendarMark, calendarTasksByDay, withCalendarStart, rememberColumn, previousColumn } from './taskDates.ts';
+import { collectPlans, planMemberMoves, withPlan } from './plans.ts';
 import { THEMES } from './constants.ts';
 import type { Card } from './types';
 
@@ -29,6 +31,30 @@ assert.deepEqual(moved.filter((c) => c.boardId === 'b1').map((c) => c.order).sor
 // Another board's backlog card is never touched.
 assert.equal(planMove(cards, 'b', null, 0).has('other'), false);
 
+// A plan spans columns. Its active card takes priority, and completing it exposes the next due card.
+const tags = withPlan(['学习'], '金融工程');
+const week1 = { ...cards[0], tags, dueDate: '2026-11-29' };
+const week2 = { ...cards[1], tags, dueDate: '2026-12-06', columnId: 'doing' };
+const done = { ...cards[2], tags, completedAt: 1, columnId: 'done' };
+const [plan] = collectPlans([week2, done, cards[3], week1], 'doing');
+assert.deepEqual(plan.members.map(c => c.id), [week1.id, week2.id, done.id]);
+assert.equal(plan.current?.id, week2.id);
+assert.equal(plan.completed, 1);
+assert.equal(collectPlans([week1, { ...week2, completedAt: 2 }], 'doing')[0].current?.id, week1.id);
+assert.equal(collectPlans([done])[0].current, undefined);
+assert.deepEqual(withPlan(tags, ''), ['学习']);
+assert.deepEqual(withPlan(tags, '新计划'), ['学习', '计划：新计划']);
+
+// Move a mixed-column plan before a real card, keeping completed weeks and their order.
+const targetCard = card('anchor', 'b1', 'doing', 2);
+let groupCards: Card[] = [week1, week2, done, targetCard];
+for (const move of planMemberMoves(groupCards, plan, 'doing', targetCard.id)) {
+  const updates = planMove(groupCards, move.id, move.columnId, move.targetIndex);
+  groupCards = groupCards.map(c => updates.get(c.id) ?? c);
+}
+assert.deepEqual(order(groupCards, 'b1', 'doing'), [week1.id, week2.id, done.id, targetCard.id]);
+assert.equal(groupCards.find(c => c.id === done.id)?.completedAt, 1);
+
 // Due dates are calendar days in local time.
 const d = new Date();
 const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -47,8 +73,30 @@ assert.equal(matchesCard({ ...sample, dueDate: null }, '', { ...DEFAULT_FILTERS,
 assert.equal(matchesCard({ ...sample, dueDate: '2026-03-08' }, '', { ...DEFAULT_FILTERS, due: 'overdue' }, now), true);
 assert.equal(matchesCard({ ...sample, dueDate: '2026-03-16' }, '', { ...DEFAULT_FILTERS, due: 'week' }, now), true);
 assert.equal(matchesCard({ ...sample, dueDate: '2026-03-17' }, '', { ...DEFAULT_FILTERS, due: 'week' }, now), false);
+assert.equal(matchesCard({ ...sample, completedAt: 1 }, '', { ...DEFAULT_FILTERS, due: 'overdue' }, now), false);
+assert.equal(formatDue('2001-03-08', 1)?.state, 'later');
 assert.equal(hasFilters(DEFAULT_FILTERS), false);
 assert.equal(hasFilters({ ...DEFAULT_FILTERS, tag: 'Design' }), true);
+
+const spanning = { ...sample, createdAt: new Date(2026, 2, 20).getTime(), dueDate: '2026-04-02', tags: withCalendarStart(tags, '2026-03-31') };
+const dates = ['2026-03-30', '2026-03-31', '2026-04-01', '2026-04-02', '2026-04-03'];
+const visible = (c: Card) => [...calendarTasksByDay([c], dates).keys()];
+assert.deepEqual(visible(spanning), dates.slice(1, 4));
+assert.deepEqual(visible({ ...spanning, tags: withCalendarStart(spanning.tags, '') }), ['2026-04-02']);
+assert.deepEqual(visible({ ...spanning, completedAt: 1 }), []);
+assert.deepEqual(visible({ ...spanning, dueDate: null }), ['2026-03-31']);
+assert.deepEqual(visible({ ...spanning, dueDate: null, tags: [] }), []);
+assert.deepEqual(visible({ ...spanning, dueDate: '2026-03-30' }), ['2026-03-30']);
+assert.equal(previousColumn(rememberColumn(tags, null)), '');
+// Urgency follows today's date, whereas the flag follows the cell date.
+assert.equal(calendarMark('2026-03-09', '2026-03-09', now).tone, 'dueToday');
+assert.equal(calendarMark('2026-03-09', '2026-03-08', now).deadline, false);
+assert.equal(calendarMark('2026-03-12', '2026-03-12', now).deadline, true);
+assert.equal(calendarMark('2026-03-12', '2026-03-09', now).tone, 'dueSoon');
+assert.equal(calendarMark('2026-03-13', '2026-03-09', now).tone, 'ordinary');
+assert.equal(calendarMark('2026-03-13', '2026-03-13', now).tone, 'deadline');
+assert.equal(calendarMark('2026-03-08', '2026-03-08', now).timing, '已逾期 1 天');
+assert.equal(calendarMark(null, '2026-03-09', now).tone, 'ordinary');
 
 // Undo insertion preserves the original position and repacks sibling orders after a deletion.
 const removed = cards.filter((c) => c.id !== 'b');

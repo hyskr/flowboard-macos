@@ -3,6 +3,8 @@ import { useFlowStore } from '../store/useFlowStore';
 import { Modal } from './Modal';
 import { Icon } from '../components/Icon';
 import { cx, uid } from '../utils';
+import { PlanScheduleModal } from './PlanScheduleModal';
+import { GroupPlanModal } from './GroupPlanModal';
 import { CardModal } from './CardModal';
 import { ThemeModal } from './ThemeModal';
 import { isDesktop } from '../desktop';
@@ -11,8 +13,7 @@ import { DesktopSettingsModal } from './DesktopSettingsModal';
 import { ConnectModal } from './ConnectModal';
 import { SettingsModal } from './SettingsModal';
 import { WebSettingsModal } from './WebSettingsModal';
-import { DayDetailModal } from './DayDetailModal';
-import type { ActivityEvent, Card } from '../types';
+import type { Card } from '../types';
 import s from './Modal.module.css';
 import ui from '../components/ui.module.css';
 
@@ -85,6 +86,8 @@ export function ModalRouter() {
 
   const content = (() => {
     switch (modal.type) {
+      case 'planSchedule': return <PlanScheduleModal name={p.name as string} />;
+      case 'groupPlan': return <GroupPlanModal columnId={p.columnId as string} />;
       case 'card': return <CardModal key={(p.card as Card | undefined)?.id ?? 'new'} card={p.card as Card | undefined} defaultColId={p.defaultColId as string | undefined} />;
       case 'addBoard': return <AddBoardModal />;
       case 'confirm': return <ConfirmModal title={p.title as string} message={p.message as ReactNode} confirmLabel={p.confirmLabel as string} onConfirm={p.onConfirm as () => unknown} />;
@@ -93,7 +96,6 @@ export function ModalRouter() {
       case 'connect': return isDesktop ? <DesktopSettingsModal /> : <ConnectModal />;
       case 'settings': return isDesktop ? <DesktopSettingsModal /> : <WebSettingsModal />;
       case 'joinInvite': return <SettingsModal inviteId={p.boardId as string} />;
-      case 'dayDetail': return <DayDetailModal date={p.date as Date} events={p.events as ActivityEvent[]} dueCards={p.dueCards as Card[]} />;
       case 'shortcuts': return <Modal title="Keyboard shortcuts" description="A few small shortcuts for a faster flow.">
         <div className={s.shortcutIntro}><Icon name="help" size={20} /><p>Use shortcuts anywhere outside a text field.</p></div>
         {[

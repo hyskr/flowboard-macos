@@ -134,3 +134,12 @@ button.listRow:hover { background: var(--hover); }
   }
   .row { grid-template-columns: 1fr; }
 }
+
+label.listRow { cursor: pointer; overflow-wrap: anywhere; }
+label.listRow:hover { background: var(--hover); }
+label.listRow input { flex-shrink: 0; accent-color: var(--accent); }
+.selectAll { margin-top: 8px; color: var(--fg-muted); }
+
+.scheduleTitle { flex: 1; min-width: 0; overflow-wrap: anywhere; padding-block: 6px; }
+.scheduleTitle small { display: block; color: var(--fg-muted); }
+.scheduleDate { flex-shrink: 0; color: var(--fg-muted); font-size: 12px; }

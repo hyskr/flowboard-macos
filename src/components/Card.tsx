@@ -1,3 +1,6 @@
+import { isReturnTag, isScheduleTag } from '../taskDates';
+import { PlanCard } from './PlanSummary';
+import { isPlanTag, type Plan } from '../plans';
 import { validChatSource } from '../chatSource';
 import { openSourceChat } from '../desktop';
 import { memo, useState, type CSSProperties } from 'react';
@@ -27,7 +30,8 @@ export function Tag({ name }: { name: string }) {
 }
 
 export function CardView({ card, variant, compact = false }: { card: Card; variant?: 'placeholder' | 'overlay'; compact?: boolean }) {
-  const due = formatDue(card.dueDate);
+  const due = formatDue(card.dueDate, card.completedAt);
+  const tags = card.tags.filter(tag => !isPlanTag(tag) && !isReturnTag(tag) && !isScheduleTag(tag));
   const hasColor = card.color && card.color !== 'transparent';
   const checklist = card.checklist ?? [];
   const done = checklist.filter((t) => t.done).length;
@@ -46,15 +50,15 @@ export function CardView({ card, variant, compact = false }: { card: Card; varia
             {due.label}
           </span>
         )}
-        {card.tags.slice(0, 2).map((t) => <Tag key={t} name={t} />)}
-        {card.tags.length > 2 && <span className={s.extraTags} title={card.tags.slice(2).join(', ')}>+{card.tags.length - 2}</span>}
+        {tags.slice(0, 2).map((t) => <Tag key={t} name={t} />)}
+        {tags.length > 2 && <span className={s.extraTags} title={tags.slice(2).join(', ')}>+{tags.length - 2}</span>}
         {!!checklist.length && <span className={cx(s.checklist, done === checklist.length && s.complete)} title={`${done} of ${checklist.length} tasks complete`}><Icon name="checklist" size={13} />{done}/{checklist.length}</span>}
       </div>
     </div>
   );
 }
 
-export const SortableCard = memo(function SortableCard({ card, className, compact }: { card: Card; className?: string; compact?: boolean }) {
+export const SortableCard = memo(function SortableCard({ card, plan, className, compact }: { card: Card; plan?: Plan; className?: string; compact?: boolean }) {
   const openModal = useFlowStore((st) => st.openModal);
   const columns = useFlowStore((st) => st.columns);
   const [menu, setMenu] = useState<{anchor:HTMLElement;point?:{x:number;y:number}} | null>(null);
@@ -62,6 +66,11 @@ export const SortableCard = memo(function SortableCard({ card, className, compac
     id: card.id,
     data: { type: 'Card' },
   });
+
+  const openPlan = () => {
+    if (plan?.current) openModal('card', { card: plan.current });
+    else if (plan) openModal('planSchedule', { name: plan.name });
+  };
 
   return (
     <div
@@ -73,7 +82,14 @@ export const SortableCard = memo(function SortableCard({ card, className, compac
       className={cx(s.sortable, className)}
       style={{ transform: CSS.Translate.toString(transform), transition }}
     >
-      <div
+      {plan ? <PlanCard plan={plan} columns={columns} variant={isDragging ? 'placeholder' : undefined}
+        handleRef={setActivatorNodeRef} handle={{ ...attributes, ...listeners, 'aria-label': `拖动计划 ${plan.name}`,
+          onClick: event => !isDragging && !event.ctrlKey && openPlan(),
+          onKeyDown: e => {
+            if (e.key === 'Enter' && !isDragging) { e.preventDefault(); openPlan(); }
+            else listeners?.onKeyDown?.(e);
+          },
+        }} /> : <div
         ref={setActivatorNodeRef}
         className={s.openCard}
         {...attributes}
@@ -85,29 +101,34 @@ export const SortableCard = memo(function SortableCard({ card, className, compac
           if (e.key === 'Enter' && !isDragging) { e.preventDefault(); openModal('card', { card }); }
           else listeners?.onKeyDown?.(e);
         }}
-      ><CardView card={card} variant={isDragging ? 'placeholder' : undefined} compact={compact} /></div>
-      {!isDragging && <input className={s.completeToggle} type="checkbox" checked={!!card.completedAt} aria-label={`${card.completedAt ? '重新打开' : '完成'} ${card.title}`} onChange={() => { void useFlowStore.getState().toggleCardComplete(card.id).catch(() => useFlowStore.getState().toast('保存失败，请重试', '⚠')); }} />}
-      {!isDragging && <button className={cx(s.options, menu && s.optionsOpen)} onClick={(e) => setMenu(menu ? null : {anchor:e.currentTarget})} aria-label={`Actions for ${card.title}`} aria-haspopup="menu" aria-expanded={!!menu}><Icon name="more" size={15} /></button>}
+      ><CardView card={card} variant={isDragging ? 'placeholder' : undefined} compact={compact} /></div>}
+      {!plan && !isDragging && <input className={s.completeToggle} type="checkbox" checked={!!card.completedAt} aria-label={`${card.completedAt ? '重新打开' : '完成'} ${card.title}`} onChange={() => { void useFlowStore.getState().toggleCardComplete(card.id).catch(() => useFlowStore.getState().toast('保存失败，请重试', '⚠')); }} />}
+      {!isDragging && <button className={cx(s.options, menu && s.optionsOpen)} onClick={(e) => setMenu(menu ? null : {anchor:e.currentTarget})} aria-label={`Actions for ${plan?.name ?? card.title}`} aria-haspopup="menu" aria-expanded={!!menu}><Icon name="more" size={15} /></button>}
       {menu && <Menu anchor={menu.anchor} point={menu.point} onClose={() => setMenu(null)}>
+        {plan ? <MenuItem icon="checklist" onClick={() => { setMenu(null); openModal('planSchedule', { name: plan.name }); }}>查看全部 {plan.members.length} 项</MenuItem> : <>
         {validChatSource(card.sourceChat)&&<MenuItem icon="link" onClick={()=>{setMenu(null);void openSourceChat(card.sourceChat!.url).catch(error=>useFlowStore.getState().toast(String(error),'⚠'));}}>打开来源聊天</MenuItem>}
         <MenuItem icon="pencil" onClick={() => { setMenu(null); openModal('card', { card }); }}>Edit card</MenuItem>
         <MenuItem icon="copy" onClick={async () => {
           setMenu(null);
           try {
-            await useFlowStore.getState().createCard(card.boardId, card.columnId, { ...card, title: `${card.title} (copy)`, completedAt: null, sourceKey: undefined, checklist: card.checklist?.map((t) => ({ ...t, id: uid(), done: false })) });
+            await useFlowStore.getState().createCard(card.boardId, card.columnId, { ...card, title: `${card.title} (copy)`, completedAt: null, tags: card.tags.filter(tag => !isReturnTag(tag)), sourceKey: undefined, checklist: card.checklist?.map((t) => ({ ...t, id: uid(), done: false })) });
             useFlowStore.getState().toast('Card duplicated');
           } catch { useFlowStore.getState().toast('Couldn’t duplicate the card. Try again.', '⚠'); }
         }}>Duplicate card</MenuItem>
+        </>}
         <MenuSeparator /><MenuLabel>Move to</MenuLabel>
         {[{ id: null, name: 'Backlog' }, ...columns.filter((c) => c.boardId === card.boardId).sort((a, b) => a.order - b.order)].filter((c) => c.id !== card.columnId).map((c) => <MenuItem key={c.id ?? 'backlog'} icon="arrowRight" onClick={async () => {
           setMenu(null);
           const st = useFlowStore.getState();
           const count = st.cards.filter((x) => x.boardId === card.boardId && x.columnId === c.id).length;
-          try { await st.moveCard(card.id, c.id, count); st.toast(`Moved to ${c.name}`); }
+          try {
+            if (plan) await st.movePlan(card.boardId, plan.name, c.id);
+            else await st.moveCard(card.id, c.id, count);
+            st.toast(`Moved to ${c.name}`); }
           catch { st.toast('Couldn’t move the card. Try again.', '⚠'); }
         }}>{c.name}</MenuItem>)}
-        <MenuSeparator />
-        <MenuItem icon="trash" danger onClick={() => { setMenu(null); openModal('confirm', { title: 'Delete this card?', message: `“${card.title}” will be removed. You can undo this right after deleting.`, confirmLabel: 'Delete card', onConfirm: () => useFlowStore.getState().deleteCard(card.id) }); }}>Delete card</MenuItem>
+        {!plan && <><MenuSeparator />
+        <MenuItem icon="trash" danger onClick={() => { setMenu(null); openModal('confirm', { title: 'Delete this card?', message: `“${card.title}” will be removed. You can undo this right after deleting.`, confirmLabel: 'Delete card', onConfirm: () => useFlowStore.getState().deleteCard(card.id) }); }}>Delete card</MenuItem></>}
       </Menu>}
     </div>
   );

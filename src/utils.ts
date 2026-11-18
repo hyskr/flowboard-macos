@@ -25,7 +25,7 @@ export function matchesCard(card: Card, query: string, filters: CardFilters, now
   if (!card.dueDate) return false;
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const days = Math.round((parseDay(card.dueDate).getTime() - today.getTime()) / 86400000);
-  return filters.due === 'overdue' ? days < 0 : filters.due === 'today' ? days === 0 : days >= 0 && days <= 7;
+  return filters.due === 'overdue' ? !card.completedAt && days < 0 : filters.due === 'today' ? days === 0 : days >= 0 && days <= 7;
 }
 
 /**
@@ -63,15 +63,21 @@ export const parseDay = (dateStr: string) => {
   return new Date(y, m - 1, d);
 };
 
-export function formatDue(dateStr: string | null): { label: string; state: DueState } | null {
+export const DUE_SOON_DAYS = 3;
+
+export function daysUntilDue(date: string, today: Date) {
+  const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((parseDay(date).getTime() - midnight.getTime()) / 86400000);
+}
+
+export function formatDue(dateStr: string | null, completedAt?: number | null): { label: string; state: DueState } | null {
   if (!dateStr) return null;
   const due = parseDay(dateStr);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+  if (completedAt) return { label: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), state: 'later' };
+  const diffDays = daysUntilDue(dateStr, new Date());
   if (diffDays < 0) return { label: `${-diffDays}d overdue`, state: 'overdue' };
   if (diffDays === 0) return { label: 'Today', state: 'today' };
   if (diffDays === 1) return { label: 'Tomorrow', state: 'soon' };
-  if (diffDays <= 3) return { label: `In ${diffDays}d`, state: 'soon' };
+  if (diffDays <= DUE_SOON_DAYS) return { label: `In ${diffDays}d`, state: 'soon' };
   return { label: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), state: 'later' };
 }

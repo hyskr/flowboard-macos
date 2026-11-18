@@ -39,7 +39,12 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 行记 v__VERSION__
-          releaseBody: 精简看板顶栏、上下文右键菜单、页面缩放和浏览器本地保存连接的网页版。Apple Silicon / Intel 通用应用。
+          releaseBody: |
+            - 将多周任务归入一张计划卡。卡面可打开、完成或撤销当前任务，也可查看完整计划，拖动标题可整组移列。
+            - 月历默认在截止日显示未完成任务。在卡片或选定日期加入日历后，从开始日连续显示到截止日。勾选后自动归入完成栏，撤销可恢复原栏目。
+            - 圆点和小旗区分安排日与截止日，颜色区分今天截止、近期截止和已逾期。手动 High 与卡片自选色可同时显示。
+
+            macOS 通用安装包支持 Apple Silicon 和 Intel。已安装的用户可在行记设置中检查更新。
           releaseDraft: false
           uploadUpdaterJson: true
           args: --target universal-apple-darwin --bundles app,dmg

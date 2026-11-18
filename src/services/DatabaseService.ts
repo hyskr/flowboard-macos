@@ -98,7 +98,7 @@ export class DatabaseService {
       const tx = this.db.transaction(['settings', 'crdtOps'], 'readonly');
       const state = tx.objectStore('settings').get(`crdtState:${boardId}`);
       const ops = tx.objectStore('crdtOps').index('boardId').getAll(boardId);
-      tx.oncomplete = () => resolve({ generation: generationOf(state.result?.value, boardId), ops: ops.result });
+      tx.oncomplete = () => resolve({ generation: generationOf(state.result?.value, boardId), ops: (ops.result as CrdtOp[]).sort((a, b) => a.ts - b.ts) });
       tx.onabort = () => reject(tx.error ?? new Error('Outbox read aborted'));
     });
   }
@@ -115,7 +115,28 @@ export class DatabaseService {
         for (const id of removed) tx.objectStore('crdtOps').delete(id);
         const state = structuredClone(remote);
         let after = Math.max(0, ...Object.values(state).flatMap(map => Object.values(map).map(row => row.__ts || 0)));
-        for (const op of pending.result as CrdtOp[]) if (!removed.has(op.opId)) applyOp(state, { ...op, ts: ++after });
+        const localOps = (pending.result as CrdtOp[]).sort((a, b) => a.ts - b.ts);
+        const acceptedIds = new Set(accepted);
+        const rejected = new Set(conflicts.map(c => c.opId));
+        const acknowledgedTimes = new Map<string, unknown>();
+        for (const op of localOps) {
+          const id = String(op.payload.id);
+          if (acceptedIds.has(op.opId) && op.type === 'card.update' && op.payload.completedAt) {
+            acknowledgedTimes.set(id, op.payload.completedAt);
+          }
+          if (removed.has(op.opId)) continue;
+          if (op.dependsOn && rejected.has(op.dependsOn)) {
+            tx.objectStore('crdtOps').delete(op.opId);
+            continue;
+          }
+          if (op.payload.completedAt === null && acknowledgedTimes.has(id) &&
+              op.baseValues?.completedAt === acknowledgedTimes.get(id) && remote.cards[id]?.completedAt) {
+            op.baseValues = { ...op.baseValues, completedAt: remote.cards[id].completedAt };
+            tx.objectStore('crdtOps').put(op);
+            acknowledgedTimes.delete(id);
+          }
+          applyOp(state, { ...op, ts: ++after });
+        }
         settle(state);
         const drafts = new Map<string, CardConflict>((saved.result?.value ?? []).map((c: CardConflict) => [c.cardId, c]));
         for (const conflict of conflicts) {

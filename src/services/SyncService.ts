@@ -19,19 +19,31 @@ export class SyncService {
   async synchronize(boardId: string): Promise<{ state: CrdtState; conflicts: CardConflict[] }> {
     const creds = await this.getBoardCreds(boardId);
     if (!creds) throw new Error('Missing board credentials');
-    const pending = (await this.db.getSyncOutbox(boardId)).ops;
-    let result: { state: CrdtState; conflicts: CardConflict[] } | undefined;
-    for (let offset = 0; offset < Math.max(1, pending.length); offset += 100) {
-      const response = await this.fetchJson('/api/sync/commit', { boardId, keyHash: creds.keyHash, ops: pending.slice(offset, offset + 100), protocolVersion: SYNC_PROTOCOL });
+    let remaining = (await this.db.getSyncOutbox(boardId)).ops;
+    let result: { state: CrdtState; conflicts: CardConflict[] };
+    do {
+      // The server assigns completion times. A dependent reopen must use the acknowledged time.
+      const completing = new Set<unknown>();
+      const batch: CrdtOp[] = [];
+      for (const op of remaining) {
+        if (op.dependsOn && batch.some(other => other.opId === op.dependsOn)) break;
+        if (op.payload.completedAt === null && completing.has(op.payload.id)) break;
+        if (op.type === 'card.update' && op.payload.completedAt) completing.add(op.payload.id);
+        batch.push(op);
+        if (batch.length === 100) break;
+      }
+      const response = await this.fetchJson('/api/sync/commit', { boardId, keyHash: creds.keyHash, ops: batch, protocolVersion: SYNC_PROTOCOL });
       if (response.status === 401 || response.status === 403) throw new Error('共享密钥无效，请修改连接信息。');
       if (!response.ok) throw new Error('同步失败，修改保留在本机。');
       const reply = await response.json();
       if (reply.protocolVersion !== SYNC_PROTOCOL || !validState(reply.state, boardId)) throw new Error('同步版本不匹配');
       result = await this.db.reconcile(boardId, reply.state, reply.accepted, reply.conflicts);
       this.revisions.set(boardId,reply.revision);
-    }
+      const unsent = new Set(remaining.slice(batch.length).map(op => op.opId));
+      remaining = unsent.size ? (await this.db.getSyncOutbox(boardId)).ops.filter(op => unsent.has(op.opId)) : [];
+    } while (remaining.length);
     this.onStatusChange(true);
-    return result!;
+    return result;
   }
 
   async hasRemoteChanges(boardId: string) {
